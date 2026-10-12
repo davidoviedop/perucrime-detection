@@ -1,0 +1,1211 @@
+# ─────────────────────────────────────────────────────────────────
+# sources.yaml — Configuración de descubrimiento por plataforma y por país
+#
+# YouTube:   búsqueda por consultas (ytsearch) + raspado de subidas de canales
+# Facebook:  listados /videos/ de páginas — requests + respaldo con Playwright
+# Otras:     URLs de cuentas — yt-dlp extrae de forma plana la lista de videos
+# ─────────────────────────────────────────────────────────────────
+
+youtube:
+  peru:
+    channels:
+      # Verificado con yt-dlp en 2026-07: los handles que daban 404 se
+      # reemplazaron por el handle/ID de canal vigente, o se descartaron si no
+      # se encontró un canal activo (ver comentarios más abajo).
+      - "https://www.youtube.com/@policiaperu/videos"                          # antes @PoliciaOfPeru (404)
+      - "https://www.youtube.com/@munidemiraflores/videos"                     # antes @SerenazgodeMiraflores (404) — canal municipal, no específico de Serenazgo
+      - "https://www.youtube.com/@MunicipalidadDeLima/videos"
+      - "https://www.youtube.com/channel/UC91qATrOkn7FLB4AfCboKhg/videos"      # antes @FiscaliadeLaNacion (404) — Ministerio Público, sin @handle
+      - "https://www.youtube.com/channel/UCvCLoltBg5y32b0oBG8j0EQ/videos"      # antes @PJudicialdePeru (404) — Poder Judicial del Perú, sin @handle
+      - "https://www.youtube.com/channel/UCPhm2I2wk4vqjENwhn3px8A/videos"      # antes @AmericaNoticias (404) — sin @handle
+      # @CanalNPeru (404) descartado: no se encontró un canal de YouTube activo
+      # de Canal N a 2026-07 (canaln.pe tampoco enlaza uno).
+      - "https://www.youtube.com/@ATVnoticias/videos"
+      - "https://www.youtube.com/@RPPNoticias/videos"
+      - "https://www.youtube.com/@panamericanatelevision/videos"              # antes @panamericanatv (404)
+      - "https://www.youtube.com/@tvperunoticias/videos"
+      - "https://www.youtube.com/@larepublicanoticias/videos"                 # antes @LaRepublicaPe (404)
+      - "https://www.youtube.com/@DiarioElComercio/videos"                    # antes @ElComercioPeruTV (404)
+      - "https://www.youtube.com/tromepe/videos"                              # antes @TromeOficial (404)
+      - "https://www.youtube.com/channel/UClBYe6QzTvvd32trO3S7Fug/videos"     # antes @SISEDAT (404) — canal real, sin @handle; publica contenido de "Robos captados por cámaras de seguridad", pertinente
+      # @AlertasLima (404) descartado: el único canal activo con ese nombre es
+      # un instalador comercial de equipos CCTV (demos de producto), no una
+      # fuente de contenido de seguridad ciudadana.
+      # @OjoEnAccionPeru (404) descartado: no se encontró un canal de YouTube activo.
+    queries:
+      # ── Generic CCTV / surveillance ──────────────────────────────
+      - "cámara de seguridad Lima"
+      - "circuito cerrado Lima"
+      - "videovigilancia Lima incidente"
+      - "cámara CCTV Lima"
+      - "cámara municipal Lima captó"
+      - "serenazgo captó Lima"
+      - "imágenes cámara seguridad Peru"
+      - "captado en cámara Lima"
+      - "grabado cámara seguridad Lima"
+      - "filmado circuito cerrado Peru"
+      - "cámara de vigilancia Lima"
+      - "imágenes exclusivas cámara Lima"
+      - "video cámara seguridad Peru"
+      # ── Robbery / theft ──────────────────────────────────────────
+      - "cámara captó robo Lima"
+      - "cámara captó asalto Peru"
+      - "circuito cerrado captó robo Lima"
+      - "serenazgo captó robo Lima"
+      - "ladrón captado cámara Lima"
+      - "mototaxi robo cámara Lima"
+      - "arrebato celular cámara Lima"
+      - "robo a mano armada captado cámara Peru"
+      - "asalto bus cámara Lima"
+      - "cogoteo captado cámara Lima"
+      - "robo cajero automático cámara Lima"
+      - "robo negocio cámara seguridad Lima"
+      - "robo vehículo cámara Lima"
+      - "carterista captado cámara Lima"
+      - "choro captado cámara Lima"
+      - "hampón captado circuito cerrado Lima"
+      - "jalaron bolso cámara Lima"
+      - "asaltaron repartidor cámara Lima"
+      - "robo en farmacia cámara Lima"
+      - "robo banco cámara seguridad Lima"
+      # ── Shooting / homicide ──────────────────────────────────────
+      - "cámara captó balacera Peru"
+      - "cámara captó tiroteo Peru"
+      - "cámara captó asesinato Peru"
+      - "sicario captado cámara Peru"
+      - "balearon cámara seguridad Lima"
+      - "sicariato captado cámara Peru"
+      - "disparo captado circuito cerrado Peru"
+      - "ejecutaron captado cámara Lima"
+      - "mataron a tiros cámara Lima"
+      - "ajuste de cuentas captado cámara Peru"
+      # ── Assault / fighting ───────────────────────────────────────
+      - "cámara captó agresión Peru"
+      - "cámara captó golpiza Peru"
+      - "cámara registró ataque Peru"
+      - "cámara captó apuñalamiento Peru"
+      - "cuchillazo captado cámara Lima"
+      - "pelea captada cámara Lima"
+      - "riña captada circuito cerrado Peru"
+      - "golpearon captado cámara Lima"
+      - "paliza captada cámara Lima"
+      - "agredieron captado cámara Lima"
+      - "pelea callejera cámara Lima"
+      - "cámara captó violencia familiar Lima"
+      # ── Road accident ────────────────────────────────────────────
+      - "cámara captó accidente Lima"
+      - "cámara captó atropello Peru"
+      - "atropello captado cámara Lima"
+      - "cámara captó choque Lima"
+      - "accidente tránsito cámara Lima"
+      - "volcó captado cámara Lima"
+      - "choque frontal captado cámara Lima"
+      - "colisión captada circuito cerrado Lima"
+      - "mototaxi accidente cámara Lima"
+      - "bus atropelló captado cámara Lima"
+      - "accidente de tráfico cámara Lima"
+      - "chocaron cámara seguridad Lima"
+      # ── Kidnapping / abduction ───────────────────────────────────
+      - "secuestro captado cámara Lima"
+      - "rapto captado circuito cerrado Peru"
+      - "jalaron persona cámara Lima"
+      - "levantón captado cámara Peru"
+      - "subieron a la fuerza cámara Lima"
+      # ── Vandalism / property ─────────────────────────────────────
+      - "vandalismo captado cámara Lima"
+      - "destrozo captado circuito cerrado Peru"
+      - "rompieron vidrio captado cámara Lima"
+      - "pintaron pared captado cámara Lima"
+      - "quemaron vehículo captado cámara Lima"
+      # ── Carjacking / vehicle crime ───────────────────────────────
+      - "robo auto cámara Lima"
+      - "asalto vehículo captado cámara Lima"
+      - "llantero captado cámara Lima"
+      - "clonaron auto cámara Lima"
+      # ── Drug / extortion ─────────────────────────────────────────
+      - "decomiso droga captado cámara Peru"
+      - "extorsión captada cámara Lima"
+      - "cupos captado cámara Lima"
+      # ── Police operations ────────────────────────────────────────
+      - "operativo policial cámara Lima"
+      - "intervención policial captada cámara Lima"
+      - "detención captada cámara Lima"
+      - "allanamiento captado cámara Lima"
+      - "serenazgo intervino cámara Lima"
+      # ── Fire / emergency ─────────────────────────────────────────
+      - "incendio captado cámara Lima"
+      - "explosión captada cámara Lima"
+      - "emergencia captada circuito cerrado Lima"
+      # ── Normal / background ──────────────────────────────────────
+      - "cámara seguridad calle Lima"
+      - "circuito cerrado sin incidente Lima"
+      - "serenazgo patrullaje cámara Lima"
+      - "CCTV Lima tráfico"
+      - "vigilancia calle tranquila Lima"
+      # ── Broader / any-source footage — not camera-specific (dashcam,
+      # video de celular, material de campo de noticias), porque este es un
+      # conjunto de evaluación complementario, no limitado a CCTV fijo ──
+      - "balacera en Lima video"
+      - "tiroteo en Lima video"
+      - "así fue el tiroteo en Lima"
+      - "asalto en Lima video"
+      - "así fue el asalto en Lima"
+      - "pelea en Lima video"
+      - "atropello en Lima video"
+      - "accidente de tránsito en Lima video"
+      - "así quedó el auto tras el accidente Lima"
+      - "video viral Lima incidente"
+      - "momento exacto del choque Lima"
+      - "secuestro en Lima video"
+
+  brazil:
+    channels:
+      - "https://www.youtube.com/@g1/videos"
+      - "https://www.youtube.com/@R7Noticias/videos"
+      - "https://www.youtube.com/@SBTNewsoficial/videos"
+      - "https://www.youtube.com/@CNNBrasil/videos"
+      - "https://www.youtube.com/@RedeTV/videos"
+      - "https://www.youtube.com/@BandJornalismo/videos"
+      - "https://www.youtube.com/@RecordNews/videos"
+    queries:
+      # CCTV genérico
+      - "câmera de segurança flagrou"
+      - "circuito fechado flagrou"
+      - "CCTV flagrou Brasil"
+      - "câmera municipal captou"
+      - "imagens câmera segurança"
+      - "flagrado em câmera Brasil"
+      - "câmera registrou incidente"
+      - "filmado câmera segurança"
+      # Robo
+      - "câmera flagrou assalto"
+      - "câmera flagrou roubo"
+      - "câmera registrou furto"
+      - "câmera flagrou assalto SP RJ"
+      - "ladrão câmera flagrou"
+      - "câmera captou assalto motoboy"
+      - "câmera flagrou arrastão"
+      - "câmera registrou sequestro relâmpago"
+      - "câmera flagrou roubaram carro"
+      - "câmera flagrou assalto banco"
+      - "câmera flagrou roubaram celular"
+      - "câmera flagrou assalto ônibus"
+      - "câmera flagrou roubo farmácia"
+      - "bandido câmera flagrou"
+      # Disparos / homicidio
+      - "câmera flagrou assassinato"
+      - "câmera captou tiro"
+      - "câmera flagrou homicídio"
+      - "câmera registrou execução"
+      - "câmera flagrou acerto de contas"
+      - "câmera flagrou tráfico"
+      - "câmera flagrou mataram"
+      - "câmera flagrou baleado"
+      - "câmera flagrou tiroteio"
+      # Agresión / peleas
+      - "câmera flagrou agressão"
+      - "câmera flagrou espancamento"
+      - "câmera flagrou esfaqueamento"
+      - "câmera captou briga violenta"
+      - "câmera flagrou linchamento"
+      - "câmera flagrou pancadaria"
+      - "câmera flagrou facada"
+      # Accidente vial
+      - "câmera flagrou atropelamento"
+      - "acidente câmera segurança"
+      - "câmera captou batida carro"
+      - "câmera flagrou capotamento"
+      - "câmera registrou engavetamento"
+      - "câmera flagrou acidente moto"
+      - "câmera flagrou batida caminhão"
+      # Vandalismo / propiedad
+      - "câmera flagrou vandalismo"
+      - "câmera registrou depredação"
+      - "câmera flagrou queimaram carro"
+      - "câmera flagrou pixação"
+      # Secuestro / robo de vehículo
+      - "câmera flagrou sequestro"
+      - "câmera flagrou roubo carro arma"
+      - "câmera flagrou arrastão shopping"
+      # Incendio / emergencia
+      - "câmera flagrou incêndio"
+      - "câmera flagrou explosão"
+      # Normal
+      - "câmera segurança rua tranquila"
+      - "CCTV rotina Brasil"
+      - "câmera sem incidente"
+      # ── Broader / any-source footage — not camera-specific ──
+      - "tiroteio em São Paulo vídeo"
+      - "assim foi o tiroteio em São Paulo"
+      - "assalto em São Paulo vídeo"
+      - "assim foi o assalto em São Paulo"
+      - "briga em São Paulo vídeo"
+      - "atropelamento em São Paulo vídeo"
+      - "acidente de trânsito em São Paulo vídeo"
+      - "assim ficou o carro após o acidente"
+      - "vídeo viral São Paulo incidente"
+      - "momento exato da batida"
+      - "sequestro relâmpago vídeo Brasil"
+
+  colombia:
+    channels:
+      - "https://www.youtube.com/@PoliciaCol/videos"
+      - "https://www.youtube.com/@CaracolNoticias/videos"
+      - "https://www.youtube.com/@CityTVColombia/videos"
+      - "https://www.youtube.com/@NTNcolumbia/videos"
+      - "https://www.youtube.com/@NoticiasRCN/videos"
+      - "https://www.youtube.com/@Noticias1Colombia/videos"
+    queries:
+      # CCTV genérico
+      - "cámara de seguridad Colombia"
+      - "circuito cerrado Colombia captó"
+      - "CCTV Colombia incidente"
+      - "cámara captó Colombia"
+      - "imágenes cámara seguridad Bogotá"
+      - "grabado cámara Medellín"
+      # Delito
+      - "cámara captó robo Colombia"
+      - "circuito cerrado captó asalto Bogotá"
+      - "cámara captó robo Medellín"
+      - "cámara captó balacera Colombia"
+      - "cámara captó sicario Colombia"
+      - "cámara captó agresión Colombia"
+      - "cámara captó pelea Colombia"
+      - "cámara captó apuñalamiento Colombia"
+      - "cámara captó secuestro Colombia"
+      - "cámara captó extorsión Colombia"
+      - "robo moto captado cámara Colombia"
+      - "fleteo captado cámara Bogotá"
+      - "parrillero captado cámara Colombia"
+      - "raponazo captado cámara Bogotá"
+      - "cámara captó hurto celular Colombia"
+      # Accidente
+      - "cámara captó atropello Colombia"
+      - "accidente cámara seguridad Bogotá"
+      - "cámara captó choque Medellín"
+      - "volcó captado cámara Colombia"
+      # Vandalismo / operativos
+      - "cámara captó vandalismo Colombia"
+      - "operativo policial captado cámara Colombia"
+      - "cámara captó disturbios Colombia"
+      - "cámara captó incendio Colombia"
+      # Normal
+      - "cámara seguridad sin incidente Bogotá"
+      - "circuito cerrado normal Colombia"
+      # ── Broader / any-source footage — not camera-specific ──
+      - "balacera en Bogotá video"
+      - "tiroteo en Bogotá video"
+      - "así fue el tiroteo en Bogotá"
+      - "asalto en Bogotá video"
+      - "así fue el asalto en Bogotá"
+      - "pelea en Bogotá video"
+      - "atropello en Bogotá video"
+      - "accidente de tránsito en Bogotá video"
+      - "video viral Bogotá incidente"
+      - "momento exacto del choque Bogotá"
+      - "secuestro en Colombia video"
+
+  argentina:
+    channels:
+      - "https://www.youtube.com/@TNoficial/videos"
+      - "https://www.youtube.com/@infobae/videos"
+      - "https://www.youtube.com/@C5Noficial/videos"
+      - "https://www.youtube.com/@cronicatv/videos"
+      - "https://www.youtube.com/@AmericaTV/videos"
+      - "https://www.youtube.com/@ElTreceAR/videos"
+    queries:
+      # CCTV genérico
+      - "cámara de seguridad Argentina"
+      - "circuito cerrado Argentina captó"
+      - "CCTV Buenos Aires incidente"
+      - "imágenes cámara seguridad Buenos Aires"
+      - "grabado cámara Argentina"
+      # Delito
+      - "cámara captó robo Argentina"
+      - "cámara de seguridad asalto Buenos Aires"
+      - "circuito cerrado robo Argentina"
+      - "cámara captó tiroteo Argentina"
+      - "cámara captó agresión Argentina"
+      - "cámara captó pelea Argentina"
+      - "cámara captó apuñalamiento Argentina"
+      - "cámara captó secuestro Argentina"
+      - "robo moto captado cámara Buenos Aires"
+      - "entradera captada cámara Argentina"
+      - "salidera captada cámara Argentina"
+      - "robo express captado cámara Buenos Aires"
+      - "cámara captó hurto subte Buenos Aires"
+      - "arrebato captado cámara Argentina"
+      # Accidente
+      - "cámara captó accidente Argentina"
+      - "cámara captó atropello Buenos Aires"
+      - "volcó captado cámara Argentina"
+      - "choque captado circuito cerrado Argentina"
+      # Vandalismo / operativos
+      - "cámara captó vandalismo Argentina"
+      - "cámara captó saqueo Argentina"
+      - "operativo policial captado cámara Buenos Aires"
+      - "cámara captó incendio Argentina"
+      # Normal
+      - "cámara seguridad sin incidente Buenos Aires"
+      - "circuito cerrado normal Argentina"
+      # ── Broader / any-source footage — not camera-specific ──
+      - "tiroteo en Buenos Aires video"
+      - "así fue el tiroteo en Buenos Aires"
+      - "asalto en Buenos Aires video"
+      - "así fue el asalto en Buenos Aires"
+      - "pelea en Buenos Aires video"
+      - "atropello en Buenos Aires video"
+      - "accidente de tránsito en Buenos Aires video"
+      - "video viral Buenos Aires incidente"
+      - "momento exacto del choque Buenos Aires"
+      - "secuestro en Argentina video"
+
+  chile:
+    channels:
+      - "https://www.youtube.com/@carabinerosofficial/videos"
+      - "https://www.youtube.com/@24HorasTVN/videos"
+      - "https://www.youtube.com/@CHVnoticias/videos"
+      - "https://www.youtube.com/@meganoticias/videos"
+      - "https://www.youtube.com/@BioBioTV/videos"
+      - "https://www.youtube.com/@LaRedNoticias/videos"
+    queries:
+      # CCTV genérico
+      - "cámara de seguridad Chile"
+      - "circuito cerrado Chile captó"
+      - "CCTV Santiago incidente"
+      - "imágenes cámara seguridad Santiago"
+      - "grabado cámara Chile"
+      # Delito
+      - "cámara captó robo Chile"
+      - "cámara de seguridad asalto Santiago"
+      - "circuito cerrado robo Chile"
+      - "cámara captó balacera Chile"
+      - "cámara captó agresión Chile"
+      - "cámara captó pelea Chile"
+      - "cámara captó apuñalamiento Chile"
+      - "cámara captó porte arma Chile"
+      - "portonazo captado cámara Chile"
+      - "cogotazo captado cámara Santiago"
+      - "cámara captó robo con violencia Chile"
+      - "cámara captó hurto Chile"
+      - "robo moto captado cámara Chile"
+      # Accidente
+      - "cámara captó atropello Chile"
+      - "accidente cámara seguridad Santiago"
+      - "volcó captado cámara Chile"
+      - "choque captado circuito cerrado Chile"
+      # Vandalismo / disturbios
+      - "cámara captó vandalismo Chile"
+      - "cámara captó barricada Chile"
+      - "cámara captó saqueo Chile"
+      - "cámara captó incendio Chile"
+      - "operativo carabineros captado cámara"
+      # Normal
+      - "cámara seguridad sin incidente Santiago"
+      - "circuito cerrado normal Chile"
+      # ── Broader / any-source footage — not camera-specific ──
+      - "balacera en Santiago video"
+      - "tiroteo en Santiago video"
+      - "así fue el tiroteo en Santiago"
+      - "asalto en Santiago video"
+      - "así fue el asalto en Santiago"
+      - "pelea en Santiago video"
+      - "atropello en Santiago video"
+      - "accidente de tránsito en Santiago video"
+      - "video viral Santiago incidente"
+      - "momento exacto del choque Santiago"
+      - "portonazo en Chile video"
+
+  mexico:
+    channels:
+      - "https://www.youtube.com/@MilenioDiario/videos"
+      - "https://www.youtube.com/@aztecanoticias/videos"
+      - "https://www.youtube.com/@SSCCDMX/videos"
+      - "https://www.youtube.com/@noticierostelevisa/videos"
+      - "https://www.youtube.com/@imagen_noticias/videos"
+      - "https://www.youtube.com/@ExpanderNoticias/videos"
+    queries:
+      # CCTV genérico
+      - "cámara de seguridad México"
+      - "circuito cerrado México captó"
+      - "CCTV CDMX incidente"
+      - "imágenes cámara seguridad Ciudad de México"
+      - "grabado cámara México"
+      # Delito
+      - "cámara captó robo México"
+      - "circuito cerrado asalto CDMX"
+      - "cámara captó tiroteo México"
+      - "cámara captó balacera CDMX"
+      - "cámara captó agresión México"
+      - "cámara captó pelea México"
+      - "cámara captó apuñalamiento México"
+      - "cámara captó secuestro México"
+      - "cámara captó levantón México"
+      - "cámara captó narcotráfico México"
+      - "asalto combi captado cámara CDMX"
+      - "robo casa captado cámara México"
+      - "jalón de bolsa captado cámara México"
+      # Accidente
+      - "cámara captó atropello México"
+      - "accidente cámara seguridad CDMX"
+      - "volcó captado cámara México"
+      - "choque captado circuito cerrado México"
+      # Vandalismo / operativos
+      - "cámara captó vandalismo México"
+      - "cámara captó saqueo México"
+      - "operativo policial captado cámara CDMX"
+      - "cámara captó incendio México"
+      # Normal
+      - "cámara seguridad sin incidente CDMX"
+      - "circuito cerrado normal México"
+      # ── Broader / any-source footage — not camera-specific ──
+      - "balacera en CDMX video"
+      - "tiroteo en CDMX video"
+      - "así fue el tiroteo en CDMX"
+      - "asalto en CDMX video"
+      - "así fue el asalto en CDMX"
+      - "pelea en CDMX video"
+      - "atropello en CDMX video"
+      - "accidente de tránsito en CDMX video"
+      - "video viral CDMX incidente"
+      - "momento exacto del choque CDMX"
+      - "levantón en México video"
+
+  ecuador:
+    channels:
+      - "https://www.youtube.com/@TeleamazonasEcuador/videos"
+      - "https://www.youtube.com/@TCTelevision/videos"
+      - "https://www.youtube.com/@ecuavisa/videos"
+    queries:
+      # CCTV genérico
+      - "cámara de seguridad Ecuador"
+      - "circuito cerrado Ecuador captó"
+      - "CCTV Guayaquil incidente"
+      - "imágenes cámara seguridad Ecuador"
+      - "grabado cámara Ecuador"
+      # Delito
+      - "cámara captó robo Ecuador"
+      - "circuito cerrado asalto Guayaquil"
+      - "cámara captó tiroteo Ecuador"
+      - "cámara captó sicario Ecuador"
+      - "cámara captó agresión Ecuador"
+      - "cámara captó pelea Ecuador"
+      - "cámara captó extorsión Ecuador"
+      - "cámara captó balacera Guayaquil"
+      - "robo moto captado cámara Ecuador"
+      # Accidente
+      - "cámara captó atropello Ecuador"
+      - "accidente cámara seguridad Quito"
+      - "choque captado cámara Ecuador"
+      # Vandalismo / operativos
+      - "cámara captó vandalismo Ecuador"
+      - "operativo policial captado cámara Ecuador"
+      - "cámara captó incendio Ecuador"
+      # Normal
+      - "cámara seguridad sin incidente Ecuador"
+      # ── Broader / any-source footage — not camera-specific ──
+      - "balacera en Guayaquil video"
+      - "tiroteo en Guayaquil video"
+      - "así fue el tiroteo en Guayaquil"
+      - "asalto en Guayaquil video"
+      - "así fue el asalto en Guayaquil"
+      - "pelea en Guayaquil video"
+      - "atropello en Ecuador video"
+      - "accidente de tránsito en Ecuador video"
+      - "video viral Ecuador incidente"
+      - "momento exacto del choque Ecuador"
+
+  venezuela:
+    channels:
+      - "https://www.youtube.com/@VTVcanal8/videos"
+      - "https://www.youtube.com/@TelevenTV/videos"
+      - "https://www.youtube.com/@VPItv/videos"
+      - "https://www.youtube.com/@EfectoCocodrilo/videos"
+    queries:
+      # CCTV genérico
+      - "cámara de seguridad Venezuela"
+      - "circuito cerrado Venezuela captó"
+      - "CCTV Caracas incidente"
+      - "imágenes cámara seguridad Venezuela"
+      - "grabado cámara Venezuela"
+      # Delito
+      - "cámara captó robo Venezuela"
+      - "circuito cerrado asalto Caracas"
+      - "cámara captó balacera Venezuela"
+      - "cámara captó agresión Venezuela"
+      - "cámara captó pelea Venezuela"
+      - "cámara captó sicario Venezuela"
+      - "cámara captó secuestro Venezuela"
+      - "cámara captó extorsión Venezuela"
+      - "malandreo captado cámara Venezuela"
+      - "robo moto captado cámara Venezuela"
+      # Accidente
+      - "cámara captó atropello Venezuela"
+      - "accidente cámara seguridad Caracas"
+      - "choque captado cámara Venezuela"
+      # Operativos / normal
+      - "operativo PNB captado cámara Venezuela"
+      - "cámara seguridad sin incidente Venezuela"
+      # ── Broader / any-source footage — not camera-specific ──
+      - "balacera en Caracas video"
+      - "tiroteo en Caracas video"
+      - "así fue el tiroteo en Caracas"
+      - "asalto en Caracas video"
+      - "así fue el asalto en Caracas"
+      - "pelea en Caracas video"
+      - "atropello en Caracas video"
+      - "accidente de tránsito en Caracas video"
+      - "video viral Venezuela incidente"
+      - "momento exacto del choque Caracas"
+
+# ── Facebook ──────────────────────────────────────────────────────
+facebook:
+  peru:
+    pages:
+      # Policía nacional y seguridad federal
+      - "https://www.facebook.com/policiaperu/videos/"
+      - "https://www.facebook.com/PNPPeru/videos/"
+      - "https://www.facebook.com/DIVINCRILima/videos/"
+      - "https://www.facebook.com/policia.carreteras.peru/videos/"
+      - "https://www.facebook.com/PoliciaRegionalArequipa/videos/"
+      - "https://www.facebook.com/PoliciaRegionalNorte/videos/"
+      - "https://www.facebook.com/PoliciaRegionalCusco/videos/"
+      - "https://www.facebook.com/PoliciaRegionalJunin/videos/"
+      - "https://www.facebook.com/SunatPeru/videos/"
+      - "https://www.facebook.com/FiscaliadeLaNacion/videos/"
+      # Serenazgo de distritos de Lima
+      - "https://www.facebook.com/SerenazgodeMiraflores/videos/"
+      - "https://www.facebook.com/SerenazgodeSanIsidro/videos/"
+      - "https://www.facebook.com/SerenazgodeSanBorja/videos/"
+      - "https://www.facebook.com/SerenazgodeSurco/videos/"
+      - "https://www.facebook.com/SerenazgodeLaMolina/videos/"
+      - "https://www.facebook.com/SerenazgoBarranco/videos/"
+      - "https://www.facebook.com/SerenazgoChorrillos/videos/"
+      - "https://www.facebook.com/SerenazgoJesusMaria/videos/"
+      - "https://www.facebook.com/SerenazgoLince/videos/"
+      - "https://www.facebook.com/SerenazgoPuebloLibre/videos/"
+      - "https://www.facebook.com/SerenazgoSanMiguel/videos/"
+      - "https://www.facebook.com/SerenazgoLosOlivos/videos/"
+      - "https://www.facebook.com/SerenazgoSanJuanDeLurigancho/videos/"
+      - "https://www.facebook.com/SerenazgoAte/videos/"
+      - "https://www.facebook.com/SerenazgoVillaElSalvador/videos/"
+      - "https://www.facebook.com/SerenazgoCallao/videos/"
+      - "https://www.facebook.com/SerenazgoComas/videos/"
+      - "https://www.facebook.com/SerenazgoIndependencia/videos/"
+      - "https://www.facebook.com/SerenazgoVillaMariaDelTriunfo/videos/"
+      - "https://www.facebook.com/SerenazgoElAgustino/videos/"
+      - "https://www.facebook.com/SerenazgoSanMartin/videos/"
+      - "https://www.facebook.com/SerenazgoSantaAnita/videos/"
+      - "https://www.facebook.com/SerenazgoLurigancho/videos/"
+      - "https://www.facebook.com/SerenazgoRimac/videos/"
+      - "https://www.facebook.com/SerenazgoBrena/videos/"
+      # Municipalidades de Lima
+      - "https://www.facebook.com/MunicipalidadDeLima/videos/"
+      - "https://www.facebook.com/MirafloresOficial/videos/"
+      - "https://www.facebook.com/MunicipalidadSanIsidro/videos/"
+      - "https://www.facebook.com/MuniSanBorja/videos/"
+      - "https://www.facebook.com/MuniSurco/videos/"
+      - "https://www.facebook.com/MuniLaMolina/videos/"
+      - "https://www.facebook.com/MuniBarranco/videos/"
+      - "https://www.facebook.com/MuniCallao/videos/"
+      - "https://www.facebook.com/MuniIndependencia/videos/"
+      - "https://www.facebook.com/MuniComas/videos/"
+      - "https://www.facebook.com/MuniSJL/videos/"
+      # Municipalidades regionales
+      - "https://www.facebook.com/MunicipalidadArequipa/videos/"
+      - "https://www.facebook.com/MunicipalidadCusco/videos/"
+      - "https://www.facebook.com/MunicipalidadTrujillo/videos/"
+      - "https://www.facebook.com/MunicipalidadChiclayo/videos/"
+      - "https://www.facebook.com/MunicipalidadPiura/videos/"
+      - "https://www.facebook.com/MunicipalidadIquitos/videos/"
+      # Tráfico y tránsito
+      - "https://www.facebook.com/ATULima/videos/"
+      - "https://www.facebook.com/MTCPeru/videos/"
+      - "https://www.facebook.com/transitolima/videos/"
+      - "https://www.facebook.com/Linea1MetroDeLima/videos/"
+      - "https://www.facebook.com/MetropolitanoLima/videos/"
+      # Seguridad ciudadana / periodismo ciudadano
+      - "https://www.facebook.com/LimaPeligrosa/videos/"
+      - "https://www.facebook.com/AlertasLima/videos/"
+      - "https://www.facebook.com/DenunciaLimaPe/videos/"
+      - "https://www.facebook.com/InseguridadLima/videos/"
+      - "https://www.facebook.com/OjoEnAccion/videos/"
+      - "https://www.facebook.com/CamarasEnAccionPeru/videos/"
+      - "https://www.facebook.com/LimaInsegura/videos/"
+      - "https://www.facebook.com/AlarmaPeru/videos/"
+      - "https://www.facebook.com/CrimenEnPeru/videos/"
+      - "https://www.facebook.com/ViralPeruNoticias/videos/"
+      - "https://www.facebook.com/RobosLimaPeru/videos/"
+      - "https://www.facebook.com/SeguidoresDeLaSeguridad/videos/"
+      # Noticieros
+      - "https://www.facebook.com/AmericaNoticias/videos/"
+      - "https://www.facebook.com/rppperu/videos/"
+      - "https://www.facebook.com/canaln.pe/videos/"
+      - "https://www.facebook.com/atvperu/videos/"
+      - "https://www.facebook.com/panamericanatv/videos/"
+      - "https://www.facebook.com/BuenosDiasPeruOficial/videos/"
+      - "https://www.facebook.com/LaRepublica.pe/videos/"
+      - "https://www.facebook.com/elcomercio.pe/videos/"
+      - "https://www.facebook.com/tromeoficial/videos/"
+      - "https://www.facebook.com/Gestion.pe/videos/"
+      - "https://www.facebook.com/CorreopeOficial/videos/"
+      - "https://www.facebook.com/PeruSports/videos/"
+      - "https://www.facebook.com/tvperuoficial/videos/"
+
+  colombia:
+    pages:
+      # Policía y seguridad federal
+      - "https://www.facebook.com/PoliciaCol/videos/"
+      - "https://www.facebook.com/PoliciaMetropolitanaBogota/videos/"
+      - "https://www.facebook.com/PoliciaMetropolitanaMedellin/videos/"
+      - "https://www.facebook.com/PoliciaMetropolitanaCali/videos/"
+      - "https://www.facebook.com/PoliciaMetroBarranquilla/videos/"
+      - "https://www.facebook.com/PoliciaMetroCartagena/videos/"
+      - "https://www.facebook.com/InpecColombia/videos/"
+      - "https://www.facebook.com/FiscaliaCol/videos/"
+      - "https://www.facebook.com/EjercitoColombia/videos/"
+      # Municipalidades y tráfico
+      - "https://www.facebook.com/AlcaldiadeBogota/videos/"
+      - "https://www.facebook.com/AlcaldiaMedellin/videos/"
+      - "https://www.facebook.com/AlcaldiaCali/videos/"
+      - "https://www.facebook.com/AlcaldiaBarranquilla/videos/"
+      - "https://www.facebook.com/transitobogota/videos/"
+      - "https://www.facebook.com/TransitoMedellin/videos/"
+      - "https://www.facebook.com/SecretariaMovilidadBogota/videos/"
+      - "https://www.facebook.com/TransMilenio/videos/"
+      - "https://www.facebook.com/MetroDeMedellin/videos/"
+      # Seguridad ciudadana
+      - "https://www.facebook.com/AlertaBogota/videos/"
+      - "https://www.facebook.com/ColombiaCriminal/videos/"
+      - "https://www.facebook.com/InseguridadColombia/videos/"
+      - "https://www.facebook.com/AlertasMedellin/videos/"
+      - "https://www.facebook.com/CrimenColombia/videos/"
+      - "https://www.facebook.com/DenunciaBogota/videos/"
+      # Noticias
+      - "https://www.facebook.com/NoticiasCaracolOficial/videos/"
+      - "https://www.facebook.com/CityTVColombia/videos/"
+      - "https://www.facebook.com/NoticiasRCN/videos/"
+      - "https://www.facebook.com/Noticias1Colombia/videos/"
+      - "https://www.facebook.com/NTNcolumbia/videos/"
+      - "https://www.facebook.com/ElTiempoColombia/videos/"
+      - "https://www.facebook.com/semana/videos/"
+
+  chile:
+    pages:
+      # Policía y seguridad federal
+      - "https://www.facebook.com/Carabineros/videos/"
+      - "https://www.facebook.com/PDIChile/videos/"
+      - "https://www.facebook.com/CarabinerosMZ/videos/"
+      - "https://www.facebook.com/CarabinerosRM/videos/"
+      - "https://www.facebook.com/CarabinerosNorte/videos/"
+      - "https://www.facebook.com/CarabinerosSur/videos/"
+      - "https://www.facebook.com/FiscaliaChile/videos/"
+      - "https://www.facebook.com/GendarmeriaChile/videos/"
+      # Municipalidades
+      - "https://www.facebook.com/MunicipalidadLasCondes/videos/"
+      - "https://www.facebook.com/MunicipalidadProvidencia/videos/"
+      - "https://www.facebook.com/MunicipalidadSantiago/videos/"
+      - "https://www.facebook.com/MunicipalidadMaipuOficial/videos/"
+      - "https://www.facebook.com/MuniNunoa/videos/"
+      - "https://www.facebook.com/MuniVitacura/videos/"
+      - "https://www.facebook.com/MuniLoBarnechea/videos/"
+      - "https://www.facebook.com/MuniPenalolen/videos/"
+      - "https://www.facebook.com/MuniLaFlorida/videos/"
+      - "https://www.facebook.com/MuniPudahuel/videos/"
+      - "https://www.facebook.com/MuniCerrillos/videos/"
+      # Tráfico
+      - "https://www.facebook.com/conasetoficial/videos/"
+      - "https://www.facebook.com/transitosantiago/videos/"
+      - "https://www.facebook.com/TransantiagoOficial/videos/"
+      - "https://www.facebook.com/MetroDeChile/videos/"
+      # Seguridad ciudadana
+      - "https://www.facebook.com/AlertaChile/videos/"
+      - "https://www.facebook.com/RobosChile/videos/"
+      - "https://www.facebook.com/InseguridadChile/videos/"
+      - "https://www.facebook.com/CrimenEnChile/videos/"
+      - "https://www.facebook.com/DenunciaChile/videos/"
+      # Noticias
+      - "https://www.facebook.com/24horastvn/videos/"
+      - "https://www.facebook.com/CHVNoticias/videos/"
+      - "https://www.facebook.com/MegaNoticias/videos/"
+      - "https://www.facebook.com/BioBioTV/videos/"
+      - "https://www.facebook.com/LaRedNoticias/videos/"
+      - "https://www.facebook.com/ElMercurio/videos/"
+      - "https://www.facebook.com/LaTerceraOnline/videos/"
+
+  argentina:
+    pages:
+      # Policía y seguridad federal
+      - "https://www.facebook.com/PoliciaFederal/videos/"
+      - "https://www.facebook.com/PoliciaBuenosAires/videos/"
+      - "https://www.facebook.com/GendarmeriaArgentina/videos/"
+      - "https://www.facebook.com/PrefecturaNavalArgentina/videos/"
+      - "https://www.facebook.com/PoliciaCordoba/videos/"
+      - "https://www.facebook.com/PoliciaSantaFe/videos/"
+      - "https://www.facebook.com/PoliciaRosario/videos/"
+      - "https://www.facebook.com/ServicioPenitenciarioFederal/videos/"
+      # Municipalidades y tráfico
+      - "https://www.facebook.com/gcba/videos/"
+      - "https://www.facebook.com/MunicipalidadCordoba/videos/"
+      - "https://www.facebook.com/MunicipalidadRosario/videos/"
+      - "https://www.facebook.com/MunicipalidadMendoza/videos/"
+      - "https://www.facebook.com/DireccionTransitoBAires/videos/"
+      - "https://www.facebook.com/Luchemosjuntos/videos/"
+      - "https://www.facebook.com/SubteBA/videos/"
+      # Seguridad ciudadana / periodismo ciudadano
+      - "https://www.facebook.com/CronicaTV/videos/"
+      - "https://www.facebook.com/AlertaInseguridadArgentina/videos/"
+      - "https://www.facebook.com/InseguridadArgentina/videos/"
+      - "https://www.facebook.com/RobosArgentina/videos/"
+      - "https://www.facebook.com/DenunciaArgentina/videos/"
+      - "https://www.facebook.com/CrimenBA/videos/"
+      - "https://www.facebook.com/ViralArgentinaTV/videos/"
+      # Noticias
+      - "https://www.facebook.com/infobae/videos/"
+      - "https://www.facebook.com/AmericaTV/videos/"
+      - "https://www.facebook.com/C5Noficial/videos/"
+      - "https://www.facebook.com/tnoficial/videos/"
+      - "https://www.facebook.com/ElTreceAR/videos/"
+      - "https://www.facebook.com/LaNacion/videos/"
+      - "https://www.facebook.com/paginadoce/videos/"
+
+  brazil:
+    pages:
+      # Policía y seguridad federal
+      - "https://www.facebook.com/pmsp.oficial/videos/"
+      - "https://www.facebook.com/PMERJ/videos/"
+      - "https://www.facebook.com/PoliciaFederalBrasil/videos/"
+      - "https://www.facebook.com/sspsp/videos/"
+      - "https://www.facebook.com/PCMG/videos/"
+      - "https://www.facebook.com/PMBahia/videos/"
+      - "https://www.facebook.com/PMCE/videos/"
+      - "https://www.facebook.com/PCRS/videos/"
+      - "https://www.facebook.com/GRPAEoficial/videos/"
+      # Municipalidades y tráfico
+      - "https://www.facebook.com/PrefeituraDeSaoPaulo/videos/"
+      - "https://www.facebook.com/PrefeituraRiodeJaneiro/videos/"
+      - "https://www.facebook.com/PrefeituraFortaleza/videos/"
+      - "https://www.facebook.com/PrefeituraBH/videos/"
+      - "https://www.facebook.com/CetspOficial/videos/"
+      - "https://www.facebook.com/DerioDeJaneiro/videos/"
+      - "https://www.facebook.com/detranrj/videos/"
+      - "https://www.facebook.com/detransp/videos/"
+      - "https://www.facebook.com/MetroSP/videos/"
+      # Seguridad ciudadana / periodismo ciudadano
+      - "https://www.facebook.com/PortaldoHolanda/videos/"
+      - "https://www.facebook.com/BandJornalismo/videos/"
+      - "https://www.facebook.com/SecurityCamBrasil/videos/"
+      - "https://www.facebook.com/CrimeBrasileiro/videos/"
+      - "https://www.facebook.com/FlagraCameras/videos/"
+      - "https://www.facebook.com/ViralBrasilTV/videos/"
+      - "https://www.facebook.com/AlertaSegurancaBR/videos/"
+      # Noticias
+      - "https://www.facebook.com/g1/videos/"
+      - "https://www.facebook.com/R7Noticias/videos/"
+      - "https://www.facebook.com/SBTNews/videos/"
+      - "https://www.facebook.com/RedeTV/videos/"
+      - "https://www.facebook.com/RecordNews/videos/"
+      - "https://www.facebook.com/UOLNoticias/videos/"
+      - "https://www.facebook.com/Folhadespaulo/videos/"
+
+  mexico:
+    pages:
+      # Policía y seguridad federal
+      - "https://www.facebook.com/SSCCiudaddeMexico/videos/"
+      - "https://www.facebook.com/GuardiaNacionalMX/videos/"
+      - "https://www.facebook.com/FiscaliaEdomex/videos/"
+      - "https://www.facebook.com/SSPEMoficial/videos/"
+      - "https://www.facebook.com/PoliciaFederalMX/videos/"
+      - "https://www.facebook.com/PoliciaJaliscoOficial/videos/"
+      - "https://www.facebook.com/PoliciaMonterrey/videos/"
+      - "https://www.facebook.com/FGJMXoficial/videos/"
+      # Municipalidades y tráfico
+      - "https://www.facebook.com/GobiernoCDMX/videos/"
+      - "https://www.facebook.com/semovi.cdmx/videos/"
+      - "https://www.facebook.com/AyuntamientoDeMonterrey/videos/"
+      - "https://www.facebook.com/AyuntamientoGuadalajara/videos/"
+      - "https://www.facebook.com/AgenciaMexicanaSeguridad/videos/"
+      - "https://www.facebook.com/MetroCDMX/videos/"
+      # Seguridad ciudadana / periodismo ciudadano
+      - "https://www.facebook.com/ForzaMexico/videos/"
+      - "https://www.facebook.com/AlertaMexicoCDMX/videos/"
+      - "https://www.facebook.com/CrimenOrganizadoMexico/videos/"
+      - "https://www.facebook.com/InseguridadMexicoOficial/videos/"
+      - "https://www.facebook.com/RobosMexico/videos/"
+      - "https://www.facebook.com/ViralMexicoTV/videos/"
+      - "https://www.facebook.com/BalaceraMexico/videos/"
+      - "https://www.facebook.com/ViolenciaEnMexico/videos/"
+      # Noticias
+      - "https://www.facebook.com/MilenioDiario/videos/"
+      - "https://www.facebook.com/AztecaNoticias/videos/"
+      - "https://www.facebook.com/noticierostelevisa/videos/"
+      - "https://www.facebook.com/imagen.noticias/videos/"
+      - "https://www.facebook.com/excelsior.mx/videos/"
+      - "https://www.facebook.com/eluniversal.com.mx/videos/"
+
+  ecuador:
+    pages:
+      # Policía y seguridad
+      - "https://www.facebook.com/PoliciaEcuador/videos/"
+      - "https://www.facebook.com/PoliciaMetropGuayaquil/videos/"
+      - "https://www.facebook.com/PoliciaMetropolitanaQuito/videos/"
+      - "https://www.facebook.com/FiscaliaEcuador/videos/"
+      - "https://www.facebook.com/FuerzasArmadasEcuador/videos/"
+      # Municipalidades y tráfico
+      - "https://www.facebook.com/MunicipioGuayaquil/videos/"
+      - "https://www.facebook.com/MunicipioQuito/videos/"
+      - "https://www.facebook.com/ANTEcuador/videos/"
+      - "https://www.facebook.com/MetroQuito/videos/"
+      # Seguridad ciudadana
+      - "https://www.facebook.com/InseguridadEcuador/videos/"
+      - "https://www.facebook.com/AlertasEcuador/videos/"
+      - "https://www.facebook.com/CrimenEcuadorOficial/videos/"
+      - "https://www.facebook.com/DenunciaEcuador/videos/"
+      # Noticias
+      - "https://www.facebook.com/Teleamazonas/videos/"
+      - "https://www.facebook.com/TCTelevision/videos/"
+      - "https://www.facebook.com/ecuavisa/videos/"
+      - "https://www.facebook.com/ElUniversoEcuador/videos/"
+      - "https://www.facebook.com/ElComercioEcuador/videos/"
+      - "https://www.facebook.com/radiocentroec/videos/"
+
+  venezuela:
+    pages:
+      # Policía y seguridad federal
+      - "https://www.facebook.com/PNBoficialVenezuela/videos/"
+      - "https://www.facebook.com/CICPCoficial/videos/"
+      - "https://www.facebook.com/GNBoficial/videos/"
+      - "https://www.facebook.com/FaesVenezuela/videos/"
+      - "https://www.facebook.com/PoliciaCaracas/videos/"
+      - "https://www.facebook.com/ZONASEGURAVenezuela/videos/"
+      # Municipalidades
+      - "https://www.facebook.com/AlcaldiadeMunicipioBolívar/videos/"
+      - "https://www.facebook.com/AlcaldiaMunicipioLibertador/videos/"
+      - "https://www.facebook.com/AlcaldiaMunicipioSucre/videos/"
+      - "https://www.facebook.com/AlcaldiaValencia/videos/"
+      - "https://www.facebook.com/AlcaldiaMaracaibo/videos/"
+      # Seguridad ciudadana / periodismo ciudadano
+      - "https://www.facebook.com/ContraLosMalos/videos/"
+      - "https://www.facebook.com/InseguridadVenezuela/videos/"
+      - "https://www.facebook.com/AlertasCaracas/videos/"
+      - "https://www.facebook.com/CrimenVzla/videos/"
+      - "https://www.facebook.com/ViolenciaVenezuelaOficial/videos/"
+      - "https://www.facebook.com/RobosVenezuela/videos/"
+      # Noticias
+      - "https://www.facebook.com/VTVcanal8/videos/"
+      - "https://www.facebook.com/TelevenTV/videos/"
+      - "https://www.facebook.com/VPItv/videos/"
+      - "https://www.facebook.com/EfectoCocodrilo/videos/"
+      - "https://www.facebook.com/TalCualDigital/videos/"
+      - "https://www.facebook.com/CorreodelOrino/videos/"
+      - "https://www.facebook.com/ElNacionalWeb/videos/"
+
+# ── TikTok ────────────────────────────────────────────────────────
+tiktok:
+  peru:
+    accounts:
+      # Policía y oficiales
+      - "https://www.tiktok.com/@policiaperu"
+      - "https://www.tiktok.com/@serenazgomiraflores"
+      - "https://www.tiktok.com/@munidesurco"
+      - "https://www.tiktok.com/@serenazgosanjuandelurigancho"
+      - "https://www.tiktok.com/@serenazgoindependencia"
+      # Noticias
+      - "https://www.tiktok.com/@americanoticias"
+      - "https://www.tiktok.com/@rppperu"
+      - "https://www.tiktok.com/@canaln_peru"
+      - "https://www.tiktok.com/@atvperu"
+      - "https://www.tiktok.com/@panamericanatv"
+      - "https://www.tiktok.com/@tvperu"
+      - "https://www.tiktok.com/@larepublica.pe"
+      - "https://www.tiktok.com/@trome"
+      # Seguridad ciudadana / periodismo ciudadano
+      - "https://www.tiktok.com/@alertaslima"
+      - "https://www.tiktok.com/@limapeligrosa"
+      - "https://www.tiktok.com/@camarasdenuncia"
+      - "https://www.tiktok.com/@seguridadperuoficial"
+      - "https://www.tiktok.com/@ojoenaccion"
+      - "https://www.tiktok.com/@crimenenperu"
+      - "https://www.tiktok.com/@roboslimaoficial"
+
+  colombia:
+    accounts:
+      - "https://www.tiktok.com/@policiacolombia"
+      - "https://www.tiktok.com/@policiabogota"
+      - "https://www.tiktok.com/@fiscaliacolombia"
+      - "https://www.tiktok.com/@caracol_noticias"
+      - "https://www.tiktok.com/@rcnnoticias"
+      - "https://www.tiktok.com/@citytvcolombia"
+      - "https://www.tiktok.com/@alertabogota"
+      - "https://www.tiktok.com/@noticiascrimencolombia"
+      - "https://www.tiktok.com/@inseguridadcolombia"
+      - "https://www.tiktok.com/@crimencolombia"
+
+  chile:
+    accounts:
+      - "https://www.tiktok.com/@carabinerosofficial"
+      - "https://www.tiktok.com/@pdi_chile"
+      - "https://www.tiktok.com/@fiscaliachile"
+      - "https://www.tiktok.com/@24horascl"
+      - "https://www.tiktok.com/@chvnoticias"
+      - "https://www.tiktok.com/@meganoticias"
+      - "https://www.tiktok.com/@biobiotv"
+      - "https://www.tiktok.com/@alertachile"
+      - "https://www.tiktok.com/@crimenchile"
+      - "https://www.tiktok.com/@inseguridadchile"
+
+  argentina:
+    accounts:
+      - "https://www.tiktok.com/@policiafederal"
+      - "https://www.tiktok.com/@policiabonaerense"
+      - "https://www.tiktok.com/@infobae"
+      - "https://www.tiktok.com/@tnoficial"
+      - "https://www.tiktok.com/@cronicatv"
+      - "https://www.tiktok.com/@c5n"
+      - "https://www.tiktok.com/@inseguridadargentina"
+      - "https://www.tiktok.com/@robosargentina"
+      - "https://www.tiktok.com/@crimenbsas"
+      - "https://www.tiktok.com/@policiacordobaoficial"
+
+  brazil:
+    accounts:
+      - "https://www.tiktok.com/@pmsp"
+      - "https://www.tiktok.com/@pmerj"
+      - "https://www.tiktok.com/@policiafederal"
+      - "https://www.tiktok.com/@g1globo"
+      - "https://www.tiktok.com/@r7noticias"
+      - "https://www.tiktok.com/@sbtnews"
+      - "https://www.tiktok.com/@bandnoticias"
+      - "https://www.tiktok.com/@crimebrasileiro"
+      - "https://www.tiktok.com/@flagracameras"
+      - "https://www.tiktok.com/@alertasegurancabr"
+
+  mexico:
+    accounts:
+      - "https://www.tiktok.com/@sscoficialmx"
+      - "https://www.tiktok.com/@guardianacionalmx"
+      - "https://www.tiktok.com/@fgj_mx"
+      - "https://www.tiktok.com/@mileniotv"
+      - "https://www.tiktok.com/@aztecanoticias"
+      - "https://www.tiktok.com/@noticierostelevisa"
+      - "https://www.tiktok.com/@alertamexicocdmx"
+      - "https://www.tiktok.com/@crimeenmexico"
+      - "https://www.tiktok.com/@inseguridadmx"
+      - "https://www.tiktok.com/@violenciamexicooficial"
+
+  ecuador:
+    accounts:
+      - "https://www.tiktok.com/@policiaecuador"
+      - "https://www.tiktok.com/@fiscaliaecuador"
+      - "https://www.tiktok.com/@teleamazonas"
+      - "https://www.tiktok.com/@tctelevision"
+      - "https://www.tiktok.com/@inseguridadecuador"
+      - "https://www.tiktok.com/@crimenecuador"
+
+  venezuela:
+    accounts:
+      - "https://www.tiktok.com/@pnbvenezuela"
+      - "https://www.tiktok.com/@vtv_canal8"
+      - "https://www.tiktok.com/@televen"
+      - "https://www.tiktok.com/@vpitv"
+      - "https://www.tiktok.com/@inseguridadvenezuela"
+      - "https://www.tiktok.com/@crimenvenezuela"
+      - "https://www.tiktok.com/@alertascaracas"
+
+# ── Instagram ─────────────────────────────────────────────────────
+instagram:
+  peru:
+    accounts:
+      # Policía y serenazgo
+      - "https://www.instagram.com/policiaperu/"
+      - "https://www.instagram.com/serenazgomiraflores/"
+      - "https://www.instagram.com/serenazgosanisidro/"
+      - "https://www.instagram.com/serenazgosanborja/"
+      - "https://www.instagram.com/serenazgosurco/"
+      - "https://www.instagram.com/serenazgosanjuandelurigancho/"
+      - "https://www.instagram.com/serenazgoindependencia/"
+      - "https://www.instagram.com/municipalidadlima/"
+      # Noticias
+      - "https://www.instagram.com/americanoticias/"
+      - "https://www.instagram.com/rppperu/"
+      - "https://www.instagram.com/canaln_pe/"
+      - "https://www.instagram.com/atvperu/"
+      - "https://www.instagram.com/larepublica.pe/"
+      - "https://www.instagram.com/trome_oficial/"
+      # Seguridad ciudadana
+      - "https://www.instagram.com/alertaslima/"
+      - "https://www.instagram.com/limapeligrosa.pe/"
+      - "https://www.instagram.com/camarasdeseguridadperu/"
+      - "https://www.instagram.com/denuncialima/"
+      - "https://www.instagram.com/ojoenaccionperu/"
+      - "https://www.instagram.com/inseguridad.lima/"
+
+  colombia:
+    accounts:
+      - "https://www.instagram.com/policiacolombia/"
+      - "https://www.instagram.com/policiabogota/"
+      - "https://www.instagram.com/fiscaliacolombia/"
+      - "https://www.instagram.com/caracoltelevision/"
+      - "https://www.instagram.com/rcnnoticias/"
+      - "https://www.instagram.com/citytvcolombia/"
+      - "https://www.instagram.com/alertabogota.co/"
+      - "https://www.instagram.com/seguridadcolombia/"
+      - "https://www.instagram.com/inseguridadcolombia/"
+
+  chile:
+    accounts:
+      - "https://www.instagram.com/carabinerosofficial/"
+      - "https://www.instagram.com/pdichile/"
+      - "https://www.instagram.com/fiscaliachile/"
+      - "https://www.instagram.com/24horascl/"
+      - "https://www.instagram.com/chvnoticias/"
+      - "https://www.instagram.com/meganoticias/"
+      - "https://www.instagram.com/biobiotv/"
+      - "https://www.instagram.com/crimenchile_/"
+      - "https://www.instagram.com/inseguridadchile_/"
+
+  argentina:
+    accounts:
+      - "https://www.instagram.com/policiafederal.arg/"
+      - "https://www.instagram.com/policiapba/"
+      - "https://www.instagram.com/infobae/"
+      - "https://www.instagram.com/tnoficial/"
+      - "https://www.instagram.com/cronicatv.ar/"
+      - "https://www.instagram.com/inseguridad_argentina/"
+      - "https://www.instagram.com/robosargentina/"
+      - "https://www.instagram.com/crimen.ba/"
+
+  brazil:
+    accounts:
+      - "https://www.instagram.com/pmsp_/"
+      - "https://www.instagram.com/pmerj/"
+      - "https://www.instagram.com/policiafederal/"
+      - "https://www.instagram.com/g1/"
+      - "https://www.instagram.com/r7/"
+      - "https://www.instagram.com/sbtnews/"
+      - "https://www.instagram.com/bandnoticias/"
+      - "https://www.instagram.com/flagracameras/"
+      - "https://www.instagram.com/crimebrasileiro/"
+
+  mexico:
+    accounts:
+      - "https://www.instagram.com/ssc_cdmx/"
+      - "https://www.instagram.com/guardianacional_mx/"
+      - "https://www.instagram.com/fgj_mx/"
+      - "https://www.instagram.com/milenio/"
+      - "https://www.instagram.com/aztecanoticias/"
+      - "https://www.instagram.com/noticierostelevisa/"
+      - "https://www.instagram.com/alertamexicocdmx/"
+      - "https://www.instagram.com/crimeenmexico/"
+      - "https://www.instagram.com/inseguridadmx/"
+
+  ecuador:
+    accounts:
+      - "https://www.instagram.com/policiaecuador/"
+      - "https://www.instagram.com/fiscaliaecuador/"
+      - "https://www.instagram.com/teleamazonas/"
+      - "https://www.instagram.com/tctelevision/"
+      - "https://www.instagram.com/inseguridadecuador/"
+      - "https://www.instagram.com/crimenecuador/"
+
+  venezuela:
+    accounts:
+      - "https://www.instagram.com/pnbvenezuela/"
+      - "https://www.instagram.com/vtv_canal8/"
+      - "https://www.instagram.com/televentvoficial/"
+      - "https://www.instagram.com/vpitv/"
+      - "https://www.instagram.com/inseguridadvenezuela/"
+
+# ── X / Twitter ───────────────────────────────────────────────────
+twitter:
+  peru:
+    accounts:
+      # Policía y oficiales
+      - "https://x.com/PoliciaOfPeru"
+      - "https://x.com/SerenazgoMfl"
+      - "https://x.com/MuniLima"
+      - "https://x.com/MTCPeru"
+      - "https://x.com/FiscaliaPeru"
+      # Noticias
+      - "https://x.com/AmericaNoticias"
+      - "https://x.com/RPPNoticias"
+      - "https://x.com/canaln_pe"
+      - "https://x.com/atvpe"
+      - "https://x.com/panamericanatvpe"
+      - "https://x.com/LaRepublica_pe"
+      - "https://x.com/trome"
+      # Seguridad ciudadana
+      - "https://x.com/AlertasLima"
+      - "https://x.com/LimaPeligrosa"
+      - "https://x.com/DenunciaLima"
+      - "https://x.com/OjoEnAccion"
+
+  colombia:
+    accounts:
+      - "https://x.com/PoliciaColombia"
+      - "https://x.com/PoliciaMetroBog"
+      - "https://x.com/FiscaliaCol"
+      - "https://x.com/CaracolNoticias"
+      - "https://x.com/NoticiasRCN"
+      - "https://x.com/CityTvColombia"
+      - "https://x.com/AlertaBogota"
+      - "https://x.com/TransMilenio"
+
+  chile:
+    accounts:
+      - "https://x.com/Carabineros"
+      - "https://x.com/PDI_Chile"
+      - "https://x.com/FiscaliaChile"
+      - "https://x.com/24HorasTVN"
+      - "https://x.com/CHVNoticias"
+      - "https://x.com/MegaNoticias"
+      - "https://x.com/BioBioChile"
+      - "https://x.com/CONASET"
+
+  argentina:
+    accounts:
+      - "https://x.com/PoliciaFederal"
+      - "https://x.com/PoliciaBA"
+      - "https://x.com/infobae"
+      - "https://x.com/tnoficial"
+      - "https://x.com/CronicaTV"
+      - "https://x.com/C5N"
+      - "https://x.com/VialNacional"
+
+  brazil:
+    accounts:
+      - "https://x.com/PMESP"
+      - "https://x.com/PMERJ"
+      - "https://x.com/PoliciaFederal"
+      - "https://x.com/g1"
+      - "https://x.com/R7"
+      - "https://x.com/SBTNews"
+      - "https://x.com/BandNews"
+      - "https://x.com/detransp"
+
+  mexico:
+    accounts:
+      - "https://x.com/SSCCDMX"
+      - "https://x.com/GN_Mexico_"
+      - "https://x.com/FGJ_CDMX"
+      - "https://x.com/Milenio"
+      - "https://x.com/AztecaNoticias"
+      - "https://x.com/Telediario"
+      - "https://x.com/semovi_cdmx"
+
+  ecuador:
+    accounts:
+      - "https://x.com/PoliciaEcuador"
+      - "https://x.com/FiscaliaEcuador"
+      - "https://x.com/Teleamazonas"
+      - "https://x.com/TCTelevision"
+      - "https://x.com/ecuavisa"
+
+  venezuela:
+    accounts:
+      - "https://x.com/PNBoficial"
+      - "https://x.com/CICPC_"
+      - "https://x.com/VTVcanal8"
+      - "https://x.com/TelevenTV"
+      - "https://x.com/VPItv"
+      - "https://x.com/EfectoCocodrilo"

@@ -1,0 +1,141 @@
+{
+  "run_id": "wa4jsu91",
+  "split": "test",
+  "classes": [
+    "Assault",
+    "Normal",
+    "Road_Accident",
+    "Robbery",
+    "Shooting"
+  ],
+  "metrics": {
+    "test_window_accuracy": 0.45722713864306785,
+    "test_window_count": 678,
+    "test_video_accuracy": 0.43103448275862066,
+    "test_video_count": 58,
+    "test_window_auc_macro": 0.8024765233448565,
+    "test_window_auc_binary": 0.7450434356172062,
+    "test_window_precision_macro": 0.5228647272066654,
+    "test_window_recall_macro": 0.4413117371729813,
+    "test_window_f1_macro": 0.36715149315717566,
+    "test_window_auc_Assault": 0.9573504273504274,
+    "test_window_precision_Assault": 0.4067796610169492,
+    "test_window_recall_Assault": 0.9230769230769231,
+    "test_window_f1_Assault": 0.5647058823529412,
+    "test_window_auc_Normal": 0.745043435617206,
+    "test_window_precision_Normal": 0.7281553398058253,
+    "test_window_recall_Normal": 0.4807692307692308,
+    "test_window_f1_Normal": 0.5791505791505791,
+    "test_window_auc_Road_Accident": 0.7986112141489977,
+    "test_window_precision_Road_Accident": 0.3287037037037037,
+    "test_window_recall_Road_Accident": 0.5867768595041323,
+    "test_window_f1_Road_Accident": 0.42136498516320475,
+    "test_window_auc_Robbery": 0.7972130546387973,
+    "test_window_precision_Robbery": 0.1506849315068493,
+    "test_window_recall_Robbery": 0.1527777777777778,
+    "test_window_f1_Robbery": 0.15172413793103448,
+    "test_window_auc_Shooting": 0.7141644849688543,
+    "test_window_precision_Shooting": 1.0,
+    "test_window_recall_Shooting": 0.06315789473684211,
+    "test_window_f1_Shooting": 0.1188118811881188,
+    "test_video_auc_macro": 0.8062042417466632,
+    "test_video_auc_binary": 0.6825208085612366,
+    "test_video_precision_macro": 0.3140151515151515,
+    "test_video_recall_macro": 0.37660098522167484,
+    "test_video_f1_macro": 0.30800047130906094,
+    "test_video_auc_Assault": 0.9577922077922078,
+    "test_video_precision_Assault": 0.5909090909090909,
+    "test_video_recall_Assault": 0.9285714285714286,
+    "test_video_f1_Assault": 0.7222222222222222,
+    "test_video_auc_Normal": 0.6967895362663497,
+    "test_video_precision_Normal": 0.6666666666666666,
+    "test_video_recall_Normal": 0.27586206896551724,
+    "test_video_f1_Normal": 0.3902439024390244,
+    "test_video_auc_Road_Accident": 0.7282913165266106,
+    "test_video_precision_Road_Accident": 0.1875,
+    "test_video_recall_Road_Accident": 0.42857142857142855,
+    "test_video_f1_Road_Accident": 0.2608695652173913,
+    "test_video_auc_Robbery": 0.8425925925925926,
+    "test_video_precision_Robbery": 0.125,
+    "test_video_recall_Robbery": 0.25,
+    "test_video_f1_Robbery": 0.16666666666666666,
+    "test_video_auc_Shooting": 0.8055555555555556,
+    "test_video_precision_Shooting": 0.0,
+    "test_video_recall_Shooting": 0.0,
+    "test_video_f1_Shooting": 0.0
+  },
+  "confusion_matrix_window": [
+    [
+      72,
+      6,
+      0,
+      0,
+      0
+    ],
+    [
+      36,
+      150,
+      71,
+      55,
+      0
+    ],
+    [
+      42,
+      8,
+      71,
+      0,
+      0
+    ],
+    [
+      3,
+      0,
+      58,
+      11,
+      0
+    ],
+    [
+      24,
+      42,
+      16,
+      7,
+      6
+    ]
+  ],
+  "confusion_matrix_video": [
+    [
+      13,
+      1,
+      0,
+      0,
+      0
+    ],
+    [
+      6,
+      8,
+      9,
+      6,
+      0
+    ],
+    [
+      2,
+      2,
+      3,
+      0,
+      0
+    ],
+    [
+      1,
+      0,
+      2,
+      1,
+      0
+    ],
+    [
+      0,
+      1,
+      2,
+      1,
+      0
+    ]
+  ]
+}

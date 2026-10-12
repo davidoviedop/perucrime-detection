@@ -1,0 +1,13 @@
+# Python 3.12. Versiones con las que se ejecutó y probó la etapa.
+torch>=2.4            # probado con 2.12.0 (CUDA 13); se recomienda GPU con ≥12 GB para ConvNeXtV2-base
+torchvision>=0.19     # probado con 0.27.0
+timm>=1.0             # probado con 1.0.27: backbones (convnextv2_base, mobilevit_xs, …)
+numpy
+opencv-python>=4.10   # decodificación de los videos
+Pillow
+scikit-learn          # AUC, precisión/recall/F1, matriz de confusión
+tqdm
+PyYAML
+# wandb>=0.17         # opcional: --wandb en 1_train.py y 2_evaluate.py
+
+# Sistema: no hace falta ffmpeg en esta etapa (los videos se leen con OpenCV).

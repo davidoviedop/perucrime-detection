@@ -1,0 +1,5 @@
+# corridas: pesos y checkpoints (pesados). Los resultados de referencia están en results/
+outputs/
+wandb/
+**/__pycache__/
+*.pyc

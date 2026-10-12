@@ -1,0 +1,28 @@
+/* Estilos extra del sitio de edición: selector Raw/Manual y tarjeta del extractor de video crudo. */
+
+    /* ── Selector de modo ───────────────────────────────────────────────────── */
+    .mode-toggle {
+      display: flex; gap: 4px; padding: 10px 10px 0;
+    }
+    .mode-btn {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 8px 6px; border: 1px solid var(--border); border-radius: var(--r-sm);
+      background: var(--surface-2); color: var(--text-2);
+      font-size: 12.5px; font-weight: 600; cursor: pointer;
+      transition: background var(--trans), color var(--trans), border-color var(--trans);
+    }
+    .mode-btn:hover { color: var(--text); }
+    .mode-btn.active {
+      background: rgba(99,102,241,.16); color: var(--accent-h);
+      border-color: rgba(99,102,241,.5);
+    }
+    .mode-btn .mode-badge {
+      font-size: 10.5px; font-weight: 700; opacity: .8;
+    }
+
+
+    .raw-extractor-card { width: 100%; max-width: 640px; border-color: rgba(99,102,241,.4); }
+
+    /* ── Tarjetas de clips registrados ─────────────────────────────────────── */
+    .rc-card.editing { border-color: rgba(99,102,241,.7); }
+    .rc-line { font-size: 12px; color: var(--text-2); margin: 4px 0 8px; }

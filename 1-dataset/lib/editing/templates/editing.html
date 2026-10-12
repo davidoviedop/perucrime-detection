@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dataset — Edición de clips</title>
+  <link rel="stylesheet" href="/static/shared/base.css" />
+  <link rel="stylesheet" href="/static/editing/editing.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── Encabezado ──────────────────────────────────────────────────────────── -->
+  <header class="hdr">
+    <div class="logo">✂️ <span>Edición de clips</span></div>
+    <div class="hdr-stats" id="hdr-stats"></div>
+    <div class="hdr-btns">
+      <button class="btn-icon" id="btn-theme"     title="Tema (T)">☀️</button>
+      <button class="btn-icon" id="btn-shortcuts" title="Atajos (?)">⌨️</button>
+    </div>
+  </header>
+
+  <!-- ── Disposición ──────────────────────────────────────────────────────────── -->
+  <div class="layout">
+
+    <!-- ── Barra lateral ─────────────────────────────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-raw" data-mode="raw">
+          📼 Raw <span class="mode-badge" id="mode-badge-raw"></span>
+        </button>
+        <button class="mode-btn" id="mode-clips" data-mode="clips">
+          ✂️ Clips <span class="mode-badge" id="mode-badge-clips"></span>
+        </button>
+      </div>
+
+      <div class="filters">
+        <div class="search-wrap">
+          <span class="search-ico">🔍</span>
+          <input type="search" id="q" placeholder="Buscar por item_id…" autocomplete="off" />
+        </div>
+        <div class="filter-grid">
+          <div class="fg" id="fg-country">
+            <label for="f-country">País</label>
+            <select id="f-country">
+              <option value="all">Todos</option>
+            </select>
+          </div>
+          <div class="fg" id="fg-class" style="display:none">
+            <label for="f-class">Clase</label>
+            <select id="f-class">
+              <option value="all">Todas</option>
+              {% for cls in classes %}
+              <option value="{{ cls }}">{{ cls }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="fg">
+            <label for="f-min-dur">Duración mín (s)</label>
+            <input type="number" id="f-min-dur" min="0" step="1" placeholder="—" />
+          </div>
+          <div class="fg">
+            <label for="f-max-dur">Duración máx (s)</label>
+            <input type="number" id="f-max-dur" min="0" step="1" placeholder="—" />
+          </div>
+        </div>
+      </div>
+
+      <div class="list-bar">
+        <span class="list-bar-lbl">Items</span>
+        <span class="list-badge" id="list-badge">—</span>
+      </div>
+      <ul class="item-list" id="item-list" role="listbox"></ul>
+    </aside>
+
+    <!-- ── Principal ────────────────────────────────────────────────────────── -->
+    <main class="main" id="main">
+
+      <div class="state-center" id="st-empty">
+        <span class="state-icon">📋</span>
+        <p>Selecciona un item de la lista</p>
+        <p class="state-hint"><kbd>J</kbd>/<kbd>K</kbd> navegar · <kbd>?</kbd> ayuda</p>
+      </div>
+
+      <div class="state-center" id="st-loading" style="display:none">
+        <div class="spinner"></div>
+        <p>Cargando…</p>
+      </div>
+
+      <div class="detail" id="st-detail" style="display:none">
+
+        <div class="meta-bar">
+          <p class="meta-title" id="d-title"></p>
+          <div class="meta-chips" id="d-chips"></div>
+        </div>
+
+        <!-- Reclasificar a nivel de item (visible cuando el item ya tiene clips) -->
+        <div class="reclass-bar" id="reclass-bar" style="display:none">
+          <select id="item-class" title="Reclasificar todos los clips anómalos del item">
+            {% for cls in classes %}
+            <option value="{{ cls }}">{{ cls }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-secondary" id="btn-reclass">Reclasificar anómalos del item</button>
+          <span class="reclass-hint">Los clips 'Normal' del item no se ven afectados</span>
+        </div>
+
+        <!-- Editor de clip + lista de clips registrados de este video -->
+        <div class="clips-outer" id="editor-panel">
+          <div class="clips-header">
+            <h3 id="editor-title">Nuevo clip de este video</h3>
+          </div>
+          <div id="clip-editor"></div>
+          <div class="clips-header" style="margin-top:20px">
+            <h3>Clips registrados de este video</h3>
+          </div>
+          <div class="clips-grid" id="clips-grid"></div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<div class="overlay" id="sc-modal" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h3>Atajos de Teclado</h3>
+    <table class="sc-table">
+      <tbody>
+        <tr><td><kbd>J</kbd> / <kbd>↓</kbd></td><td>Siguiente item</td></tr>
+        <tr><td><kbd>K</kbd> / <kbd>↑</kbd></td><td>Item anterior</td></tr>
+        <tr><td><kbd>T</kbd></td><td>Cambiar tema claro/oscuro</td></tr>
+        <tr><td><kbd>?</kbd></td><td>Mostrar/ocultar atajos</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Cerrar</td></tr>
+      </tbody>
+    </table>
+    <button class="btn btn-secondary" id="close-sc">Cerrar</button>
+  </div>
+</div>
+
+<script>window.CLASSES = {{ classes | tojson }};</script>
+<script src="/static/shared/common.js"></script>
+<script src="/static/shared/crop_overlay.js"></script>
+<script src="/static/editing/js/state.js"></script>
+<script src="/static/editing/js/filters_stats.js"></script>
+<script src="/static/editing/js/item_list.js"></script>
+<script src="/static/editing/js/editor_widgets.js"></script>
+<script src="/static/editing/js/clip_editor.js"></script>
+<script src="/static/editing/js/recorded_clips.js"></script>
+<script src="/static/editing/js/init.js"></script>
+</body>
+</html>

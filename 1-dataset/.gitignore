@@ -1,0 +1,11 @@
+# cookies de sesión
+config/cookies/*
+!config/cookies/README.md
+
+# videos y logs generados (pesados). Los CSV de data/metadata/ SÍ se versionan: son el dataset
+data/*
+!data/metadata/
+data/metadata/*.lock
+data/metadata/*.tmp
+**/__pycache__/
+*.pyc
