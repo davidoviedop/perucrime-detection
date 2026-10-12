@@ -1,0 +1,54 @@
+run_id: 8ac40pob
+classes:
+- Assault
+- Normal
+- Road_Accident
+- Robbery
+- Shooting
+sources:
+- scrapped
+- ucf-crime
+- vioperu
+config:
+  data_root: ../1-dataset/data/3_dataset
+  seq_len: 16
+  stride: 16
+  frame_stride: 4
+  img_size:
+  - 160
+  - 160
+  max_windows_per_video: 70
+  batch_size: 16
+  num_workers: 4
+  backbone: mobilevit_xs
+  pretrained: true
+  freeze_prefixes:
+  - stem
+  - conv_stem
+  - stages.0
+  attn_heads: 4
+  attn_layers: 1
+  attn_dropout: 0.1
+  head_dropout: 0.5
+  epochs: 2
+  patience: 10
+  lr_backbone: 0.0001
+  lr_temporal: 0.0003
+  lr_head: 0.0003
+  weight_decay: 0.001
+  label_smoothing: 0.2
+  lr_factor: 0.5
+  lr_sched_patience: 3
+  lr_threshold: 0.0001
+  lr_min: 1.0e-08
+  seed: 42
+  mil_top_k_fraction: 0.1
+  mil_anomaly_threshold: 0.5
+  wandb_project: peru-crime4-anomaly
+  wandb_run_name: distil-mobilevit-xs-mil-v2
+extra:
+  distillation:
+    teacher_run_dir: ../2-modelling/outputs/wa4jsu91
+    kd_temperature: 4.0
+    kd_alpha: 0.3
+    teacher_backbone: convnextv2_base

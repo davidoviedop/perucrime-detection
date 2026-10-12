@@ -1,0 +1,5 @@
+# Mismas dependencias que la etapa 2 (esta etapa importa su paquete `lib`):
+-r ../2-modelling/requirements.txt
+
+# La cuantización dinámica int8 usa el backend de CPU de PyTorch (fbgemm/qnnpack): no hace
+# falta nada más. El conteo de GFLOPs usa torch.utils.flop_counter (incluido en PyTorch).

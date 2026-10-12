@@ -1,0 +1,7 @@
+# Dependencias EXTRA de la etapa 4, además de las del entorno del proyecto (etapas 2 y 3).
+# Entorno del proyecto (pasos 1 y 3):
+onnx
+onnxruntime
+# Entorno del toolkit (paso 2) — NO se instala con pip install -r: lo crea setup_rknn_env.sh
+# (venv ~/venvs/rknn con torch 2.4.0 CPU, numpy<=1.26.4 y rknn_toolkit2 2.3.2, que fijan versiones
+# incompatibles con las del entorno del proyecto).

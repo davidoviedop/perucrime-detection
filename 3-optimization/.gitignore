@@ -1,0 +1,6 @@
+# corridas: pesos, checkpoints y variantes comprimidas (pesados). Los CSV de results/ SÍ se versionan
+outputs/
+wandb/
+**/__pycache__/
+*.pyc
+**/rknn/*

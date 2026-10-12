@@ -28,8 +28,14 @@ def run_dir(run_id: str, outputs_dir: Path = OUTPUTS_DIR) -> Path:
     return Path(outputs_dir) / run_id
 
 
-def save_run_info(out_dir: Path, cfg: Config, classes: list[str], sources: list[str], run_id: str) -> None:
+def save_run_info(out_dir: Path, cfg: Config, classes: list[str], sources: list[str], run_id: str,
+                  extra: dict | None = None) -> None:
+    """Guarda run.yaml. `extra` (opcional) agrega una sección propia, p. ej. los parámetros de
+    destilación de la etapa 3; `config` queda siempre con los campos de Config para que
+    cualquier etapa pueda reconstruir el modelo."""
     info = {"run_id": run_id, "classes": classes, "sources": sources, "config": cfg.to_dict()}
+    if extra:
+        info["extra"] = extra
     (out_dir / "run.yaml").write_text(yaml.safe_dump(info, sort_keys=False, allow_unicode=True))
 
 
@@ -37,3 +43,9 @@ def load_run_info(out_dir: Path) -> tuple[Config, list[str], list[str]]:
     """(configuración, clases, fuentes) de una corrida ya entrenada."""
     info = yaml.safe_load((Path(out_dir) / "run.yaml").read_text())
     return Config.from_dict(info["config"]), info["classes"], info["sources"]
+
+
+def load_run_extra(out_dir: Path) -> dict:
+    """La sección `extra` de run.yaml ({} si la corrida no tiene)."""
+    info = yaml.safe_load((Path(out_dir) / "run.yaml").read_text())
+    return info.get("extra") or {}

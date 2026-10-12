@@ -1,0 +1,50 @@
+# Estudiante MobileViT-XS destilado desde el profesor ConvNeXtV2-base. Es la configuración
+# EXACTA registrada por wandb para la corrida 8ac40pob
+# (2.5-model/models/mil_opt/distil_convbase_v2.py).
+#
+# OJO: esa corrida también fue de epochs: 2 (≈25 min en una RTX 4070 Ti SUPER). Para un
+# entrenamiento largo sube epochs: --set epochs=40
+
+# profesor: la corrida entrenada en la etapa 2 (debe tener best.pt y run.yaml)
+teacher_run_dir: ../2-modelling/outputs/wa4jsu91
+kd_temperature: 4.0
+kd_alpha: 0.3
+
+# datos (la salida de 1-dataset/8_export.py)
+data_root: ../1-dataset/data/3_dataset
+seq_len: 16
+stride: 16
+frame_stride: 4
+img_size: [160, 160]
+max_windows_per_video: 70
+batch_size: 16
+num_workers: 4
+
+# estudiante
+backbone: mobilevit_xs
+pretrained: true
+freeze_prefixes: [stem, conv_stem, stages.0]
+attn_heads: 4
+attn_layers: 1
+attn_dropout: 0.1
+head_dropout: 0.5
+
+# entrenamiento
+epochs: 2
+patience: 10
+lr_backbone: 1.0e-04
+lr_temporal: 3.0e-04
+lr_head: 3.0e-04
+weight_decay: 1.0e-03
+label_smoothing: 0.2
+lr_factor: 0.5
+lr_sched_patience: 3
+lr_threshold: 1.0e-04
+lr_min: 1.0e-08
+seed: 42
+
+mil_top_k_fraction: 0.10
+mil_anomaly_threshold: 0.50
+
+wandb_project: peru-crime4-anomaly
+wandb_run_name: distil-mobilevit-xs-mil-v2
