@@ -7,7 +7,7 @@
 # usaba 40) o pásalo por línea de comandos: --set epochs=40
 
 # datos (la salida de 1-dataset/8_export.py)
-data_root: ../1-dataset/data/3_dataset
+data_root: /home/chech/tesis/workspace/data/peru-crime5
 seq_len: 16
 stride: 16
 frame_stride: 4
@@ -15,6 +15,7 @@ img_size: [160, 160]
 max_windows_per_video: 70
 batch_size: 16
 num_workers: 4
+temporal_jitter: 0
 
 # modelo
 backbone: convnextv2_base
@@ -26,7 +27,7 @@ attn_dropout: 0.1
 head_dropout: 0.5
 
 # entrenamiento: el backbone preentrenado solo se ajusta con LR muy bajo
-epochs: 2
+epochs: 40
 patience: 10
 lr_backbone: 1.0e-06
 lr_temporal: 1.0e-05
@@ -44,4 +45,4 @@ mil_top_k_fraction: 0.10
 mil_anomaly_threshold: 0.50
 
 wandb_project: peru-crime4-anomaly
-wandb_run_name: opt-convnext-mil-v2
+wandb_run_name: opt-convnext-mil-v3

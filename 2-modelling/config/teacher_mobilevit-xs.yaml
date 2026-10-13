@@ -1,0 +1,48 @@
+# Profesor: ConvNeXtV2-base + transformer temporal. Es la configuración EXACTA registrada
+# por wandb para la corrida wa4jsu91 (2.5-model/models/mil_opt/opt_convbase_v2.py), cuyas
+# métricas de test son las que se reportan como referencia.
+#
+# OJO: esa corrida se hizo con epochs: 2 (la corrida completa, con evaluación y barrido de
+# compresión, tardó ≈3.9 h en una RTX 4070 Ti SUPER), no con un entrenamiento completo. Para un entrenamiento largo sube epochs (el script original
+# usaba 40) o pásalo por línea de comandos: --set epochs=40
+
+# datos (la salida de 1-dataset/8_export.py)
+data_root: /home/chech/tesis/workspace/data/peru-crime5
+seq_len: 16
+stride: 16
+frame_stride: 4
+img_size: [160, 160]
+max_windows_per_video: 70
+batch_size: 16
+num_workers: 4
+temporal_jitter: 8
+
+# modelo
+backbone: mobilevit_xs
+pretrained: true
+freeze_prefixes: [stem, stages.0, stages.1]
+attn_heads: 4
+attn_layers: 1
+attn_dropout: 0.1
+head_dropout: 0.5
+
+# entrenamiento: el backbone preentrenado solo se ajusta con LR muy bajo
+epochs: 40
+patience: 10
+lr_backbone: 1.0e-06
+lr_temporal: 1.0e-05
+lr_head: 1.0e-05
+weight_decay: 1.0e-03
+label_smoothing: 0.2
+lr_factor: 0.5
+lr_sched_patience: 3
+lr_threshold: 1.0e-04
+lr_min: 1.0e-08
+seed: 42
+
+# puntuación MIL por video
+mil_top_k_fraction: 0.10
+mil_anomaly_threshold: 0.50
+
+wandb_project: peru-crime4-anomaly
+wandb_run_name: opt-mobilevit-mil-v3

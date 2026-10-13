@@ -21,6 +21,7 @@ class Config:
     seq_len: int = 16                  # fotogramas por ventana
     stride: int = 16                   # paso entre inicios de ventana (fotogramas fuente)
     frame_stride: int = 4              # paso entre fotogramas muestreados dentro de una ventana
+    temporal_jitter: int = 0           # jitter aleatorio en fotogramas fuente al muestrear la ventana (0 = sin jitter)
     img_size: tuple = (160, 160)
     max_windows_per_video: int = 70    # tope de ventanas por video
     batch_size: int = 16

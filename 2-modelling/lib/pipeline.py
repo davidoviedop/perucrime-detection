@@ -60,8 +60,8 @@ def train_run(cfg: Config, run_id: str, outputs_dir: Path, use_wandb: bool = Fal
     train_loader, val_loader, test_loader, tr_recs, vl_recs, test_recs = build_loaders(
         data_root, sources, classes, cls_to_idx,
         cfg.seq_len, cfg.stride, tuple(cfg.img_size), cfg.batch_size, cfg.num_workers,
-        max_windows_per_video=cfg.max_windows_per_video, frame_stride=cfg.frame_stride)
-
+        max_windows_per_video=cfg.max_windows_per_video, frame_stride=cfg.frame_stride,
+        temporal_jitter=cfg.temporal_jitter)
     # ── Modelo ──────────────────────────────────────────────────────────────
     model = build_model(cfg, len(classes), pretrained=pretrained).to(device)
     total, trainable, frozen = count_parameters(model)

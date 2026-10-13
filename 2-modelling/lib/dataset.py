@@ -22,6 +22,7 @@ import cv2
 import numpy as np
 import torch
 import torchvision.transforms as T
+import torchvision.transforms.functional as TF
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from tqdm.auto import tqdm
@@ -29,21 +30,55 @@ from tqdm.auto import tqdm
 
 # ── Transformaciones ──────────────────────────────────────────────────────────
 
+class WindowTrainTransform:
+    """Aumentación de entrenamiento por ventana.
+    Recibe una lista de imágenes PIL y devuelve un tensor (T, 3, H, W).
+    """
+    per_window = True
+
+    def __init__(self, img_size, flip_p=0.5,
+                 brightness=0.3, contrast=0.3, saturation=0.2, hue=0.05):
+        self.resize = T.Resize(img_size)
+        self.flip_p = flip_p
+        self.jitter = T.ColorJitter(brightness=brightness, contrast=contrast,
+                                    saturation=saturation, hue=hue)
+
+    def __call__(self, images):
+        # Un solo sorteo por ventana (torch.rand / get_params usan el generador de torch,
+        # que el DataLoader re-siembra por worker y por época).
+        flip = torch.rand(1).item() < self.flip_p
+        order, b, c, s, h = T.ColorJitter.get_params(
+            self.jitter.brightness, self.jitter.contrast,
+            self.jitter.saturation, self.jitter.hue)
+
+        out = []
+        for img in images:
+            img = self.resize(img)
+            if flip:
+                img = TF.hflip(img)
+            for fn_id in order:   # mismo orden aleatorio de operaciones que T.ColorJitter
+                if fn_id == 0 and b is not None:
+                    img = TF.adjust_brightness(img, b)
+                elif fn_id == 1 and c is not None:
+                    img = TF.adjust_contrast(img, c)
+                elif fn_id == 2 and s is not None:
+                    img = TF.adjust_saturation(img, s)
+                elif fn_id == 3 and h is not None:
+                    img = TF.adjust_hue(img, h)
+            out.append(TF.normalize(TF.to_tensor(img), _MEAN, _STD))
+        return torch.stack(out)
+
+
+_MEAN = [0.485, 0.456, 0.406]
+_STD  = [0.229, 0.224, 0.225]
+
 def make_transforms(img_size):
     """Devuelve (transformación_de_entrenamiento, transformación_de_validación) para el tamaño dado."""
-    _mean = [0.485, 0.456, 0.406]
-    _std  = [0.229, 0.224, 0.225]
-    train = T.Compose([
-        T.Resize(img_size),
-        T.RandomHorizontalFlip(p=0.5),
-        T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.05),
-        T.ToTensor(),
-        T.Normalize(mean=_mean, std=_std),
-    ])
+    train = WindowTrainTransform(img_size)
     val = T.Compose([
         T.Resize(img_size),
         T.ToTensor(),
-        T.Normalize(mean=_mean, std=_std),
+        T.Normalize(mean=_MEAN, std=_STD),
     ])
     return train, val
 
@@ -76,6 +111,13 @@ def _list_videos(folder):
 
 # ── Indexado de ventanas ──────────────────────────────────────────────────────
 
+def frame_count(vpath):
+    """Cantidad de fotogramas del video según su cabecera (sin decodificarlo)."""
+    cap = cv2.VideoCapture(str(vpath))
+    n   = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
+    return n
+
 def index_video(vpath, label, seq_len, stride,
                 frame_stride=1, max_windows=None):
     """Desliza ventanas de seq_len fotogramas por todo el clip.
@@ -99,9 +141,7 @@ def index_video(vpath, label, seq_len, stride,
     Devuelve:
         lista de tuplas (vpath_str, start_frame, label)
     """
-    cap = cv2.VideoCapture(str(vpath))
-    n   = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    cap.release()
+    n = frame_count(vpath)
 
     # fotogramas fuente que consume realmente una ventana
     span = (seq_len - 1) * frame_stride + 1
@@ -181,25 +221,54 @@ class VideoWindowDataset(Dataset):
         seq_len:      fotogramas por ventana
         img_size:     (H, W), para el fotograma negro de relleno de load_frames_fast
         frame_stride: paso entre fotogramas muestreados dentro de una ventana (por defecto 1)
+        temporal_jitter: jitter aleatorio en fotogramas fuente al muestrear la ventana (0 = sin jitter)
+        frame_counts: dict {vpath: n_fotogramas} para calcular el jitter temporal
     """
-
-    def __init__(self, records, transform, seq_len, img_size, frame_stride=1):
+    def __init__(self, records, transform, seq_len, img_size, frame_stride=1,
+                 temporal_jitter=0, frame_counts=None):
         self.records      = records
         self.transform    = transform
         self.seq_len      = seq_len
         self.img_size     = img_size
         self.frame_stride = frame_stride
+        self.temporal_jitter = int(temporal_jitter)
+        self.frame_counts    = frame_counts or {}
+        if self.temporal_jitter < 0:
+            raise ValueError('temporal_jitter debe ser >= 0')
+        if self.temporal_jitter and not self.frame_counts:
+            raise ValueError('temporal_jitter > 0 necesita frame_counts {vpath: n_fotogramas}')
 
     def __len__(self):
         return len(self.records)
 
+    def _jittered_start(self, vpath, start):
+        """Inicio desplazado al azar en [start, start + temporal_jitter], sin salir del clip.
+        Se usa torch.randint: el DataLoader vuelve a sembrar el generador de torch en cada
+        worker y en cada época, así que los desplazamientos cambian entre workers y épocas
+        y siguen la semilla global de la corrida.
+        """
+        span      = (self.seq_len - 1) * self.frame_stride + 1
+        max_start = self.frame_counts[vpath] - span      # último inicio que cabe entero
+        if max_start <= start:                           # ventana pegada al final: no se mueve
+            return start
+        hi = min(start + self.temporal_jitter, max_start)
+        return int(torch.randint(start, hi + 1, (1,)).item())    
+    
+
     def __getitem__(self, idx):
         vpath, start, label = self.records[idx]
+        if self.temporal_jitter:
+            start = self._jittered_start(vpath, start)
         frames = load_frames_fast(
             vpath, start, self.seq_len, self.img_size, self.frame_stride
         )
-        seq = torch.stack([self.transform(Image.fromarray(f)) for f in frames])
+        images = [Image.fromarray(f) for f in frames]
+        if getattr(self.transform, 'per_window', False):
+            seq = self.transform(images)            # mismo sorteo para toda la ventana
+        else:
+            seq = torch.stack([self.transform(im) for im in images])   # val/test: determinista
         return seq, torch.tensor(label, dtype=torch.long)
+
 
 
 # ── Punto de entrada ──────────────────────────────────────────────────────────
@@ -209,6 +278,7 @@ def build_loaders(
     seq_len, stride, img_size, batch_size, num_workers,
     frame_stride=1,
     max_windows_per_video=None,
+    temporal_jitter=0,
 ):
     """Construye los DataLoaders de train / val / test.
 
@@ -231,6 +301,8 @@ def build_loaders(
                                (seq_len - 1) * frame_stride + 1 fotogramas fuente.
                                A 25 FPS, frame_stride=4 → ~160 ms entre muestras.
         max_windows_per_video: tope de ventanas por video (None = sin tope)
+        temporal_jitter:       desplazamiento aleatorio máximo (fotogramas fuente) del
+                               inicio de cada ventana de train; 0 = sin aumentación temporal        
 
     Devuelve:
         train_loader, val_loader, test_loader,
@@ -250,6 +322,7 @@ def build_loaders(
     print(f'frame_stride : {frame_stride}  ({ms_between:.0f} ms between samples)')
     print(f'window span  : {span_frames} source frames  ({span_seconds:.2f} s at 25 FPS)')
     print(f'win stride   : {stride} source frames between window starts')
+    print(f'temp. jitter : {temporal_jitter} source frames (train only)')
     print()
 
     # ── Cantidad de videos desde el disco, juntando las fuentes ───────────────
@@ -299,8 +372,12 @@ def build_loaders(
     )
 
     # ── Datasets ──────────────────────────────────────────────────────────────
+        # El desplazamiento necesita saber dónde termina cada clip de train.
+    tr_counts = ({vp: frame_count(vp) for vp in sorted({r[0] for r in tr_recs})}
+                 if temporal_jitter else None)
     train_ds = VideoWindowDataset(
-        tr_recs,   train_tf, seq_len, img_size, frame_stride)
+        tr_recs,   train_tf, seq_len, img_size, frame_stride,
+        temporal_jitter=temporal_jitter, frame_counts=tr_counts)
     val_ds   = VideoWindowDataset(
         vl_recs,   val_tf,   seq_len, img_size, frame_stride)
     test_ds  = VideoWindowDataset(
