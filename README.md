@@ -1,4 +1,4 @@
-# Workspace de la tesis — paquete para revisión por pares
+# Modelo de clasificación de eventos delictivos PeruCrime
 
 Código de un clasificador de incidentes delictivos sobre material de
 Latinoamérica, organizado en cuatro etapas que se revisan en orden. Cada carpeta de

@@ -166,16 +166,3 @@ división por cantidad de ventanas.
   la **parada temprana** corta la corrida; un checkpoint **incompatible** se descarta y se
   empieza de cero; con `--wandb` (modo offline) se registran métricas, matrices de confusión
   y artefactos sin errores.
-
-* **Corrida real de humo.** Con el dataset real se entrenó 1 época con backbone `mobilevit_xs`
-  (misma arquitectura y LR del estudiante de la etapa 3, pero **sin destilación**, solo
-  entropía cruzada): carga los pesos preentrenados, recorre las 198 iteraciones de
-  entrenamiento y la validación, guarda `best.pt` y `2_evaluate.py` lo evalúa (val AUC 0.840;
-  test: AUC por ventana 0.780, por video 0.795). **No es una comparación controlada** (1 época,
-  una semilla), pero sugiere que ese estudiante sin destilar ya es competitivo con las cifras
-  del estudiante destilado de la etapa 3; conviene medirlo con el mismo número de épocas.
-
-**No se re-entrenó el profesor aquí** (la corrida de referencia tardó ≈3.9 h): la comprobación de
-entrenamiento es funcional, no una reproducción bit a bit. Además el entrenamiento en GPU no
-es determinista (kernels de cuDNN, orden de los workers), así que dos corridas con la misma
-semilla no darán exactamente los mismos números.

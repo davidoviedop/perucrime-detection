@@ -3,12 +3,10 @@
 Cómo se construye el dataset de material de incidentes de Latinoamérica
 (`perucrime-5`): desde el scraping de videos candidatos hasta una división
 train/val/test sin fugas. Cada paso es un script de línea de comandos o un sitio web
-pequeño. **No hay base de datos:** el estado del pipeline vive en archivos CSV
+pequeño. El estado del pipeline vive en archivos CSV
 legibles (`data/metadata/`), como los metadatos que acompañan a los datasets
 públicos, y los videos del dataset se *generan* a partir de esos CSV.
 
-Los agentes asistidos por IA que se usaron en el trabajo original para acelerar la
-anotación **no** forman parte de este paquete (ver [Alcance](#alcance-qué-incluye-y-qué-no)).
 
 ## Idea central: el CSV manda, los videos son derivados
 
@@ -282,6 +280,3 @@ Con datos sintéticos (videos reales de ffmpeg, un navegador real y yt-dlp simul
   ventanas por item y clase, **misma asignación de splits**, mismos archivos exportados;
   además descartados/`Others` excluidos, aborto si hay clips sin generar, limpieza de
   obsoletos, modos `copy`/`hardlink`/`symlink` y comprobación de fugas en disco.
-
-**No se ejercitó aquí:** nada que requiera red (yt-dlp real, Facebook/Playwright); esos
-archivos son copias directas de la lógica original.
