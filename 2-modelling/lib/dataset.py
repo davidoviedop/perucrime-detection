@@ -30,6 +30,7 @@ import cv2
 import numpy as np
 import torch
 import torchvision.transforms as T
+import torchvision.transforms.functional as TF
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from tqdm.auto import tqdm
@@ -37,21 +38,72 @@ from tqdm.auto import tqdm
 
 # ── Transformaciones ──────────────────────────────────────────────────────────
 
+_MEAN = [0.485, 0.456, 0.406]
+_STD  = [0.229, 0.224, 0.225]
+
+
+class WindowTrainTransform:
+    """Aumentación de entrenamiento coherente en el tiempo: se aplica a la VENTANA entera.
+
+    Antes se aplicaba un T.Compose aleatorio a cada fotograma por separado, así que el
+    volteo horizontal y el ColorJitter se sorteaban 16 veces por ventana: la mitad de los
+    fotogramas salía espejada y el brillo/color parpadeaba de uno a otro, lo que destruye
+    la coherencia del movimiento que debe aprender el transformer temporal. Aquí los
+    parámetros aleatorios se sortean UNA vez por ventana y se aplican iguales a sus
+    `seq_len` fotogramas.
+
+    Mismo orden y mismas operaciones que antes (Resize → volteo → ColorJitter → ToTensor →
+    Normalize) y mismas magnitudes; solo cambia que el azar es por ventana, no por fotograma.
+
+    Recibe una lista de imágenes PIL y devuelve un tensor (T, 3, H, W).
+    """
+    per_window = True
+
+    def __init__(self, img_size, flip_p=0.5,
+                 brightness=0.3, contrast=0.3, saturation=0.2, hue=0.05):
+        self.resize = T.Resize(img_size)
+        self.flip_p = flip_p
+        self.jitter = T.ColorJitter(brightness=brightness, contrast=contrast,
+                                    saturation=saturation, hue=hue)
+
+    def __call__(self, images):
+        # Un solo sorteo por ventana (torch.rand / get_params usan el generador de torch,
+        # que el DataLoader re-siembra por worker y por época).
+        flip = torch.rand(1).item() < self.flip_p
+        order, b, c, s, h = T.ColorJitter.get_params(
+            self.jitter.brightness, self.jitter.contrast,
+            self.jitter.saturation, self.jitter.hue)
+
+        out = []
+        for img in images:
+            img = self.resize(img)
+            if flip:
+                img = TF.hflip(img)
+            for fn_id in order:   # mismo orden aleatorio de operaciones que T.ColorJitter
+                if fn_id == 0 and b is not None:
+                    img = TF.adjust_brightness(img, b)
+                elif fn_id == 1 and c is not None:
+                    img = TF.adjust_contrast(img, c)
+                elif fn_id == 2 and s is not None:
+                    img = TF.adjust_saturation(img, s)
+                elif fn_id == 3 and h is not None:
+                    img = TF.adjust_hue(img, h)
+            out.append(TF.normalize(TF.to_tensor(img), _MEAN, _STD))
+        return torch.stack(out)
+
+
 def make_transforms(img_size):
-    """Devuelve (transformación_de_entrenamiento, transformación_de_validación) para el tamaño dado."""
-    _mean = [0.485, 0.456, 0.406]
-    _std  = [0.229, 0.224, 0.225]
-    train = T.Compose([
-        T.Resize(img_size),
-        T.RandomHorizontalFlip(p=0.5),
-        T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.05),
-        T.ToTensor(),
-        T.Normalize(mean=_mean, std=_std),
-    ])
+    """Devuelve (transformación_de_entrenamiento, transformación_de_validación) para el tamaño dado.
+
+    La de entrenamiento es por ventana (WindowTrainTransform); la de validación es
+    determinista y se sigue aplicando fotograma a fotograma, idéntica a la original, para
+    que las métricas de val/test de corridas anteriores se reproduzcan sin cambios.
+    """
+    train = WindowTrainTransform(img_size)
     val = T.Compose([
         T.Resize(img_size),
         T.ToTensor(),
-        T.Normalize(mean=_mean, std=_std),
+        T.Normalize(mean=_MEAN, std=_STD),
     ])
     return train, val
 
@@ -235,7 +287,11 @@ class VideoWindowDataset(Dataset):
         frames = load_frames_fast(
             vpath, start, self.seq_len, self.img_size, self.frame_stride
         )
-        seq = torch.stack([self.transform(Image.fromarray(f)) for f in frames])
+        images = [Image.fromarray(f) for f in frames]
+        if getattr(self.transform, 'per_window', False):
+            seq = self.transform(images)            # mismo sorteo para toda la ventana
+        else:
+            seq = torch.stack([self.transform(im) for im in images])   # val/test: determinista
         return seq, torch.tensor(label, dtype=torch.long)
 
 

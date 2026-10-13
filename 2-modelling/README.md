@@ -50,6 +50,12 @@ ventana (B, 16, 3, 160, 160)
 
 * Las primeras etapas del backbone se congelan (`freeze_prefixes`) y el resto se ajusta con
   un LR muy bajo (`1e-6`); el transformer temporal y la cabeza, que parten de cero, usan `1e-5`.
+* Aumentación espacial de train (Resize, volteo horizontal p=0.5, ColorJitter brillo 0.3 /
+  contraste 0.3 / saturación 0.2 / tono 0.05) **por ventana**: los parámetros aleatorios se
+  sortean una vez y se aplican iguales a los 16 fotogramas (`WindowTrainTransform`). Las
+  corridas de referencia `wa4jsu91` y `8ac40pob` se entrenaron con la versión anterior, que
+  sorteaba por fotograma (volteo y color distintos dentro de una misma ventana). Val/test
+  no cambian.
 * Aumentación temporal opcional (`temporal_jitter`, solo train): el inicio de cada ventana
   se desplaza al azar entre 0 y `temporal_jitter` fotogramas en cada lectura. Con
   `stride=16` y `frame_stride=4`, sin ella dos ventanas vecinas comparten 12 de 16
