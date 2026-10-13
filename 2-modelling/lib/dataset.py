@@ -14,6 +14,14 @@ segmento: cada clip se indexa como un único rango de ventanas.
 Una ventana son `seq_len` fotogramas tomados cada `frame_stride` fotogramas fuente, así
 que abarca (seq_len - 1) * frame_stride + 1 fotogramas del video. Los inicios de
 ventana avanzan de a `stride` fotogramas.
+
+Aumentación temporal (solo train, `temporal_jitter` > 0): cada vez que se lee una ventana
+de entrenamiento, su inicio se desplaza al azar entre 0 y `temporal_jitter` fotogramas
+(sin pasarse del final del clip). Como stride (16) es múltiplo de frame_stride (4), sin
+este desplazamiento dos ventanas vecinas comparten exactamente 12 de sus 16 fotogramas y
+cada época repite las mismas muestras; con él, cada época ve fotogramas distintos del
+mismo tramo. La cantidad de ventanas, el balance del muestreador y el split no cambian.
+Val y test nunca se desplazan, para que las métricas sean reproducibles.
 """
 from collections import Counter
 from pathlib import Path
@@ -76,6 +84,14 @@ def _list_videos(folder):
 
 # ── Indexado de ventanas ──────────────────────────────────────────────────────
 
+def frame_count(vpath):
+    """Cantidad de fotogramas del video según su cabecera (sin decodificarlo)."""
+    cap = cv2.VideoCapture(str(vpath))
+    n   = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
+    return n
+
+
 def index_video(vpath, label, seq_len, stride,
                 frame_stride=1, max_windows=None):
     """Desliza ventanas de seq_len fotogramas por todo el clip.
@@ -99,9 +115,7 @@ def index_video(vpath, label, seq_len, stride,
     Devuelve:
         lista de tuplas (vpath_str, start_frame, label)
     """
-    cap = cv2.VideoCapture(str(vpath))
-    n   = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    cap.release()
+    n = frame_count(vpath)
 
     # fotogramas fuente que consume realmente una ventana
     span = (seq_len - 1) * frame_stride + 1
@@ -183,18 +197,41 @@ class VideoWindowDataset(Dataset):
         frame_stride: paso entre fotogramas muestreados dentro de una ventana (por defecto 1)
     """
 
-    def __init__(self, records, transform, seq_len, img_size, frame_stride=1):
+    def __init__(self, records, transform, seq_len, img_size, frame_stride=1,
+                 temporal_jitter=0, frame_counts=None):
         self.records      = records
         self.transform    = transform
         self.seq_len      = seq_len
         self.img_size     = img_size
         self.frame_stride = frame_stride
+        self.temporal_jitter = int(temporal_jitter)
+        self.frame_counts    = frame_counts or {}
+        if self.temporal_jitter < 0:
+            raise ValueError('temporal_jitter debe ser >= 0')
+        if self.temporal_jitter and not self.frame_counts:
+            raise ValueError('temporal_jitter > 0 necesita frame_counts {vpath: n_fotogramas}')
 
     def __len__(self):
         return len(self.records)
 
+    def _jittered_start(self, vpath, start):
+        """Inicio desplazado al azar en [start, start + temporal_jitter], sin salir del clip.
+
+        Se usa torch.randint: el DataLoader vuelve a sembrar el generador de torch en cada
+        worker y en cada época, así que los desplazamientos cambian entre workers y épocas
+        y siguen la semilla global de la corrida.
+        """
+        span      = (self.seq_len - 1) * self.frame_stride + 1
+        max_start = self.frame_counts[vpath] - span      # último inicio que cabe entero
+        if max_start <= start:                           # ventana pegada al final: no se mueve
+            return start
+        hi = min(start + self.temporal_jitter, max_start)
+        return int(torch.randint(start, hi + 1, (1,)).item())
+
     def __getitem__(self, idx):
         vpath, start, label = self.records[idx]
+        if self.temporal_jitter:
+            start = self._jittered_start(vpath, start)
         frames = load_frames_fast(
             vpath, start, self.seq_len, self.img_size, self.frame_stride
         )
@@ -209,6 +246,7 @@ def build_loaders(
     seq_len, stride, img_size, batch_size, num_workers,
     frame_stride=1,
     max_windows_per_video=None,
+    temporal_jitter=0,
 ):
     """Construye los DataLoaders de train / val / test.
 
@@ -231,6 +269,8 @@ def build_loaders(
                                (seq_len - 1) * frame_stride + 1 fotogramas fuente.
                                A 25 FPS, frame_stride=4 → ~160 ms entre muestras.
         max_windows_per_video: tope de ventanas por video (None = sin tope)
+        temporal_jitter:       desplazamiento aleatorio máximo (fotogramas fuente) del
+                               inicio de cada ventana de train; 0 = sin aumentación temporal
 
     Devuelve:
         train_loader, val_loader, test_loader,
@@ -250,6 +290,7 @@ def build_loaders(
     print(f'frame_stride : {frame_stride}  ({ms_between:.0f} ms between samples)')
     print(f'window span  : {span_frames} source frames  ({span_seconds:.2f} s at 25 FPS)')
     print(f'win stride   : {stride} source frames between window starts')
+    print(f'temp. jitter : {temporal_jitter} source frames (train only)')
     print()
 
     # ── Cantidad de videos desde el disco, juntando las fuentes ───────────────
@@ -299,8 +340,12 @@ def build_loaders(
     )
 
     # ── Datasets ──────────────────────────────────────────────────────────────
+    # El desplazamiento necesita saber dónde termina cada clip de train.
+    tr_counts = ({vp: frame_count(vp) for vp in sorted({r[0] for r in tr_recs})}
+                 if temporal_jitter else None)
     train_ds = VideoWindowDataset(
-        tr_recs,   train_tf, seq_len, img_size, frame_stride)
+        tr_recs,   train_tf, seq_len, img_size, frame_stride,
+        temporal_jitter=temporal_jitter, frame_counts=tr_counts)
     val_ds   = VideoWindowDataset(
         vl_recs,   val_tf,   seq_len, img_size, frame_stride)
     test_ds  = VideoWindowDataset(

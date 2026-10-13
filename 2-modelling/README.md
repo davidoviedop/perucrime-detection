@@ -50,6 +50,12 @@ ventana (B, 16, 3, 160, 160)
 
 * Las primeras etapas del backbone se congelan (`freeze_prefixes`) y el resto se ajusta con
   un LR muy bajo (`1e-6`); el transformer temporal y la cabeza, que parten de cero, usan `1e-5`.
+* Aumentación temporal opcional (`temporal_jitter`, solo train): el inicio de cada ventana
+  se desplaza al azar entre 0 y `temporal_jitter` fotogramas en cada lectura. Con
+  `stride=16` y `frame_stride=4`, sin ella dos ventanas vecinas comparten 12 de 16
+  fotogramas idénticos; con `--set temporal_jitter=15` cada época ve fotogramas distintos
+  sin cambiar la cantidad de ventanas ni el split. Por defecto es 0 (como las corridas de
+  referencia); val y test nunca se desplazan.
 * Pérdida: entropía cruzada con *label smoothing* 0.2. No se pondera por clase: el
   muestreador de entrenamiento ya balancea las clases por frecuencia inversa.
 * AdamW, AMP (precisión mixta) en CUDA, `ReduceLROnPlateau` sobre `val_auc`, parada temprana.

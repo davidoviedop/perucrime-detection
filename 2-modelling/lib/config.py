@@ -23,6 +23,11 @@ class Config:
     frame_stride: int = 4              # paso entre fotogramas muestreados dentro de una ventana
     img_size: tuple = (160, 160)
     max_windows_per_video: int = 70    # tope de ventanas por video
+    # Aumentación temporal (solo train): en cada lectura, el inicio de la ventana se desplaza
+    # un número aleatorio de fotogramas en [0, temporal_jitter]. 0 = desactivado (como las
+    # corridas de referencia). Valor recomendado: stride - 1 (= 15), que cubre todo el hueco
+    # entre dos inicios de ventana sin cambiar la cantidad de ventanas ni el split.
+    temporal_jitter: int = 0
     batch_size: int = 16
     num_workers: int = 4
 
