@@ -13,6 +13,10 @@ import timm
 import torch
 import torch.nn as nn
 
+from .uniformer import UniFormerExtractor
+
+UNIFORMER = 'uniformer_small'   # valor de `backbone` que elige la línea base UniFormer-S
+
 
 class FrameBackbone(nn.Module):
     """Backbone de imágenes de timm sin clasificador, aplicado fotograma a fotograma.
@@ -80,9 +84,39 @@ class AnomalyDetector(nn.Module):
         return self.head(f)
 
 
+class UniFormerClassifier(nn.Module):
+    """Línea base: clasificador multiclase de Flores-Monroy et al. (2025) sobre UniFormer-S.
+
+        ventana (B, T, 3, H, W) ─► UniFormer-S congelado (Kinetics-400) ─► (B, 512)
+           └─ MLP: Linear(512,512) → ReLU → Dropout → Linear(512,32) → ReLU → Dropout → Linear(32,K)
+
+    La arquitectura del MLP (tres capas lineales de 512, 32 y K unidades, ReLU y dropout 0.6)
+    es la del artículo. A diferencia del resto de modelos no hay módulo temporal propio:
+    UniFormer ya modela el tiempo dentro de la ventana, y solo se entrena el MLP.
+    """
+
+    def __init__(self, n_classes, pretrained=True, dropout=0.6):
+        super().__init__()
+        self.backbone = UniFormerExtractor(pretrained)
+        d = self.backbone.out_dim
+        self.head = nn.Sequential(
+            nn.Linear(d, d), nn.ReLU(), nn.Dropout(dropout),
+            nn.Linear(d, 32), nn.ReLU(), nn.Dropout(dropout),
+            nn.Linear(32, n_classes),
+        )
+
+    def forward(self, x):
+        f = self.backbone(x.permute(0, 2, 1, 3, 4))   # UniFormer espera (B, C, T, H, W)
+        return self.head(f.float())
+
+
 def build_model(cfg, n_classes, pretrained=None):
     """Crea el modelo descrito por la configuración. `pretrained` (si no es None) pisa cfg.pretrained;
     al evaluar un checkpoint se pasa False porque los pesos salen del archivo."""
+    if cfg.backbone == UNIFORMER:
+        return UniFormerClassifier(
+            n_classes, pretrained=cfg.pretrained if pretrained is None else pretrained,
+            dropout=cfg.head_dropout)
     return AnomalyDetector(
         n_classes, cfg.backbone,
         pretrained=cfg.pretrained if pretrained is None else pretrained,

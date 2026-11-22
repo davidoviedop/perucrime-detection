@@ -119,12 +119,14 @@ def evaluate(model, loader, device, n_classes=2, amp=False):
 # ── Optimizador y scheduler ───────────────────────────────────────────────────
 
 def build_optimizer(model, cfg):
-    """AdamW con tres grupos de parámetros (backbone entrenable, transformer temporal, cabeza)."""
-    return optim.AdamW([
-        {'params': [p for p in model.backbone.parameters() if p.requires_grad], 'lr': cfg.lr_backbone},
-        {'params': model.temporal.parameters(), 'lr': cfg.lr_temporal},
-        {'params': model.head.parameters(),     'lr': cfg.lr_head},
-    ], weight_decay=cfg.weight_decay)
+    """AdamW con tres grupos de parámetros (backbone entrenable, transformer temporal, cabeza).
+    Los grupos vacíos se omiten: la línea base UniFormer solo tiene cabeza (backbone congelado)."""
+    groups = [
+        ([p for p in model.backbone.parameters() if p.requires_grad], cfg.lr_backbone),
+        (list(model.temporal.parameters()) if hasattr(model, 'temporal') else [], cfg.lr_temporal),
+        (list(model.head.parameters()), cfg.lr_head),
+    ]
+    return optim.AdamW([{'params': ps, 'lr': lr} for ps, lr in groups if ps], weight_decay=cfg.weight_decay)
 
 
 def build_scheduler(optimizer, cfg):

@@ -9,6 +9,10 @@ ganchos permiten cambiar solo lo que difiere sin duplicar el flujo:
                     entrenamiento (la destilación devuelve un envoltorio que además corre
                     al profesor); se llama solo si realmente se va a entrenar
   extra_info        dict que se guarda en la sección `extra` de run.yaml
+  model_factory     función (cfg, n_clases, pretrained) → modelo; reemplaza a build_model
+                    (la etapa 5 la usa para las variantes de arquitectura de la ablación)
+  loaders_hook      función (tupla de build_loaders) → tupla; permite cambiar los loaders
+                    antes de entrenar (p. ej. quitar el muestreador balanceado)
 """
 from pathlib import Path
 
@@ -27,7 +31,8 @@ from .training import build_optimizer, build_scheduler, fit, restore_checkpoint
 
 def train_run(cfg: Config, run_id: str, outputs_dir: Path, use_wandb: bool = False,
               retrain: bool = False, pretrained=None, criterion=None, wrap_train_model=None,
-              extra_info: dict | None = None, extra_config: dict | None = None) -> Path:
+              extra_info: dict | None = None, extra_config: dict | None = None,
+              model_factory=None, loaders_hook=None) -> Path:
     """Entrena (o reanuda, o da por entrenada) la corrida `run_id` y devuelve su carpeta."""
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
@@ -62,8 +67,12 @@ def train_run(cfg: Config, run_id: str, outputs_dir: Path, use_wandb: bool = Fal
         cfg.seq_len, cfg.stride, tuple(cfg.img_size), cfg.batch_size, cfg.num_workers,
         max_windows_per_video=cfg.max_windows_per_video, frame_stride=cfg.frame_stride,
         temporal_jitter=cfg.temporal_jitter)
+    if loaders_hook is not None:
+        train_loader, val_loader, test_loader, tr_recs, vl_recs, test_recs = loaders_hook(
+            (train_loader, val_loader, test_loader, tr_recs, vl_recs, test_recs))
     # ── Modelo ──────────────────────────────────────────────────────────────
-    model = build_model(cfg, len(classes), pretrained=pretrained).to(device)
+    factory = model_factory or build_model
+    model = factory(cfg, len(classes), pretrained=pretrained).to(device)
     total, trainable, frozen = count_parameters(model)
     print(f'Total parameters     : {total:,}')
     print(f'Trainable parameters : {trainable:,}')

@@ -1,7 +1,7 @@
 # Modelo de clasificación de eventos delictivos PeruCrime
 
 Código de un clasificador de incidentes delictivos sobre material de
-Latinoamérica, organizado en cuatro etapas que se revisan en orden. Cada carpeta de
+Latinoamérica, organizado en cinco etapas que se revisan en orden. Cada carpeta de
 etapa tiene su propio README con la instalación, los comandos, las notas de diseño
 y lo que se verificó.
 
@@ -11,6 +11,7 @@ y lo que se verificó.
 | 2. Modelado: ConvNeXtV2 + transformer temporal, puntuación de video con MIL | [`2-modelling/`](2-modelling/README.md) | listo para revisión (entrenar y evaluar; métricas de referencia reproducidas) |
 | 3. Optimización: destilación, poda y cuantización | [`3-optimization/`](3-optimization/README.md) | listo para revisión (destilación + barrido de compresión del estudiante y del profesor) |
 | 4. Exportación a RKNN (simulador, plataforma `rv1126b`) | [`4-export/`](4-export/README.md) | código escrito, sin ejecutar |
+| 5. Ablación: quita o cambia una pieza del modelo a la vez y reentrena | [`5-ablation/`](5-ablation/README.md) | código listo y probado con una corrida mínima; suite completa sin correr |
 
 El modelo final es el estudiante MobileViT-XS destilado
 (`2.5-model/models/mil_opt/distil_convbase_v2.py` en el árbol de trabajo); las

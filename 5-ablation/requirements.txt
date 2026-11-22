@@ -1,0 +1,8 @@
+torch>=2.4
+timm>=1.0
+numpy
+scikit-learn
+PyYAML
+tqdm
+opencv-python>=4.10
+Pillow

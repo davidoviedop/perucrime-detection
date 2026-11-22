@@ -1,0 +1,45 @@
+# Ablación del modelo MobileViT-XS + transformer temporal (el backbone del modelo final).
+# Cada variante cambia UNA cosa respecto de `reference`. Ver README.md.
+#
+# Se ablaciona el modelo entrenado directamente (sin destilación): es el que permite
+# comparar piezas de la arquitectura y del entrenamiento a un costo razonable. El efecto de
+# la destilación está en la etapa 3.
+
+name: mobilevit_xs
+base_config: ../../2-modelling/config/teacher_mobilevit-xs.yaml   # relativa a este archivo
+reference: reference
+seeds: [42]            # varias semillas: seeds: [42, 43, 44] o --seeds 42 43 44
+
+common: {}             # campos de Config que se aplican a todas las variantes (p. ej. epochs: 20)
+
+variants:
+  # ── Referencia ──────────────────────────────────────────────────────────────
+  - name: reference
+
+  # ── Módulo temporal ─────────────────────────────────────────────────────────
+  - name: temporal_mean            # ¿hace falta modelar el tiempo? (promedio de fotogramas)
+    model: {temporal: mean}
+  - name: temporal_lstm            # recurrente (LSTM 2×256) en lugar de atención
+    model: {temporal: lstm}
+  - name: temporal_nopos           # atención sin embedding posicional (ignora el orden)
+    model: {temporal: transformer_nopos}
+  - name: attn_layers_2            # más profundidad en la atención
+    set: {attn_layers: 2}
+
+  # ── Transferencia desde ImageNet ────────────────────────────────────────────
+  - name: unfrozen_backbone        # se ajusta todo el backbone
+    set: {freeze_prefixes: []}
+  - name: scratch_backbone         # sin pesos preentrenados; sin congelar y con LR de backbone alto
+    set: {pretrained: false, freeze_prefixes: [], lr_backbone: 1.0e-4}
+
+  # ── Entrenamiento ───────────────────────────────────────────────────────────
+  - name: no_label_smoothing
+    set: {label_smoothing: 0.0}
+  - name: uniform_sampler          # sin muestreo balanceado por frecuencia inversa
+    sampler: uniform
+  - name: no_temporal_jitter       # sin desplazamiento aleatorio del inicio de la ventana
+    set: {temporal_jitter: 0}
+
+  # ── Entrada ─────────────────────────────────────────────────────────────────
+  - name: short_window             # 8 fotogramas por ventana en lugar de 16
+    set: {seq_len: 8}

@@ -1,0 +1,46 @@
+# Línea base: clasificador multiclase de Flores-Monroy et al. (2025, Appl. Sci. 15, 9249) —
+# UniFormer-S congelado (Kinetics-400) + MLP 512-512-32-K — reentrenado sobre Peru-Crime5.
+#
+# Adaptaciones respecto del artículo (que usa UCF-Crime, 13 clases anómalas):
+#   * Cinco clases, incluida Normal: aquí el clasificador no va detrás de un detector.
+#   * Las muestras son las ventanas del dataset (ya recortadas al evento), no el segmento más
+#     anómalo según MIL+BERT; cada ventana hereda la etiqueta de su video.
+#   * El desbalance se maneja con el muestreador por frecuencia inversa del entrenamiento
+#     (en lugar de la entropía cruzada ponderada del artículo), igual que en los demás modelos.
+# Se mantienen del artículo: clips de 16 fotogramas a 224x224, MLP con dropout 0.6, AdamW,
+# lr 1e-3 y entropía cruzada sin label smoothing.
+
+# datos
+data_root: ../data/peru-crime5
+seq_len: 16
+stride: 16
+frame_stride: 4
+img_size: [224, 224]
+max_windows_per_video: 70
+batch_size: 32
+num_workers: 4
+temporal_jitter: 0
+
+# modelo
+backbone: uniformer_small
+pretrained: true
+head_dropout: 0.6
+
+# entrenamiento (solo se entrena el MLP)
+epochs: 30
+patience: 10
+lr_head: 1.0e-03
+weight_decay: 1.0e-03
+label_smoothing: 0.0
+lr_factor: 0.5
+lr_sched_patience: 3
+lr_threshold: 1.0e-04
+lr_min: 1.0e-08
+seed: 42
+
+# puntuación MIL por video
+mil_top_k_fraction: 0.10
+mil_anomaly_threshold: 0.50
+
+wandb_project: peru-crime4-anomaly
+wandb_run_name: baseline-uniformer-s

@@ -22,13 +22,15 @@ en un estudiante MobileViT-XS y le aplica poda y cuantización.
 2-modelling/
 ├── 1_train.py        Paso 1  entrena y guarda la corrida en outputs/{run_id}/
 ├── 2_evaluate.py     Paso 2  evalúa el mejor modelo de una corrida sobre test (o val)
-├── config/           teacher_convnextv2_base.yaml: hiperparámetros exactos de la corrida de referencia
+├── config/           teacher_convnextv2_base.yaml: hiperparámetros exactos de la corrida de referencia;
+│                     baseline_uniformer_s.yaml: línea base UniFormer-S (ver "Línea base")
 ├── results/          métricas de referencia (sin pesos) de la corrida wa4jsu91
 ├── requirements.txt
 └── lib/              lógica y utilidades
     ├── config.py     Config (dataclass) + carga/guardado en YAML
     ├── dataset.py    ventanas deslizantes, lectura de fotogramas, DataLoaders
-    ├── model.py      FrameBackbone + TemporalTransformer + AnomalyDetector
+    ├── model.py      FrameBackbone + TemporalTransformer + AnomalyDetector; UniFormerClassifier (línea base)
+    ├── uniformer.py  UniFormer-S para video (código del repositorio oficial) y su extractor congelado
     ├── training.py   run_epoch, evaluate, fit (checkpoints, scheduler, parada temprana)
     ├── metrics.py    AUC macro / por clase / binario, precisión-recall-F1
     ├── mil.py        puntuación de video en dos etapas (MIL)
@@ -53,6 +55,28 @@ ventana (B, 16, 3, 160, 160)
 * Pérdida: entropía cruzada con *label smoothing* 0.2. No se pondera por clase: el
   muestreador de entrenamiento ya balancea las clases por frecuencia inversa.
 * AdamW, AMP (precisión mixta) en CUDA, `ReduceLROnPlateau` sobre `val_auc`, parada temprana.
+
+## Línea base: UniFormer-S (Flores-Monroy et al., 2025)
+
+Para comparar contra un modelo de la literatura se reentrenó el clasificador multiclase de
+Flores-Monroy et al. (2025, *Appl. Sci.* 15, 9249) sobre este dataset
+(`config/baseline_uniformer_s.yaml`, `python 1_train.py --config config/baseline_uniformer_s.yaml`).
+Es un extractor **UniFormer-S congelado** (preentrenado en Kinetics-400, clips de 16 fotogramas a
+224×224, vector de 512 dimensiones) seguido de un **MLP** de tres capas lineales (512, 32 y K
+unidades, ReLU y dropout 0.6); solo se entrena el MLP (AdamW, lr 1e-3, entropía cruzada).
+Usa el mismo cargador de datos, la misma puntuación MIL por video y el mismo `2_evaluate.py`
+que los demás modelos, de modo que sus métricas son directamente comparables.
+
+Adaptaciones respecto del artículo, que trabaja sobre UCF-Crime (13 clases anómalas):
+
+* **Cinco clases, con Normal.** En el artículo el clasificador solo ve clips que un detector
+  (MIL+BERT) ya marcó como anómalos; aquí clasifica todas las ventanas directamente.
+* **Las muestras son las ventanas del dataset**, ya recortadas al evento, y no el segmento más
+  anómalo de un video largo; no hace falta el detector.
+* **Desbalance:** el muestreador por frecuencia inversa en lugar de la entropía cruzada ponderada.
+* **Pesos de UniFormer-S:** `uniformer_small_k400_16x8.pth` del repositorio `Sense-X/uniformer_video`
+  de HuggingFace (se descargan solos); el artículo no precisa cuál variante de Kinetics-400 usó.
+* El código del backbone (`lib/uniformer.py`) es una copia del repositorio oficial (Apache-2.0).
 
 ## Entrenar a nivel de ventana, reportar a nivel de video
 
