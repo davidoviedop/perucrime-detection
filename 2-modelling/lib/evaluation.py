@@ -66,6 +66,24 @@ def evaluate_split(model, loader, recs, classes, normal_idx, cfg, device, amp, s
     return score_predictions(probs, preds, labels, recs, classes, normal_idx, cfg, split)
 
 
+def save_predictions(path, probs, preds, labels, recs):
+    """Guarda las predicciones por ventana de un split en un .npz: probs (N, clases), preds, labels,
+    vpaths (ruta del video), sources (fuente, la carpeta `{fuente}` de data_root/{fuente}/{split}/{clase}/)
+    y starts (fotograma de inicio). Con esto se puede re-puntuar por video sin repetir la inferencia."""
+    from pathlib import Path
+    vpaths = np.array([str(r[0]) for r in recs])
+    sources = np.array([Path(v).parents[2].name for v in vpaths])
+    np.savez_compressed(path, probs=np.asarray(probs), preds=np.asarray(preds), labels=np.asarray(labels),
+                        vpaths=vpaths, sources=sources, starts=np.array([int(r[1]) for r in recs]))
+
+
+def load_predictions(path):
+    """(probs, preds, labels, recs) de un .npz de save_predictions(); recs = [(video, inicio, clase)]."""
+    z = np.load(path)
+    recs = [(str(v), int(s), int(l)) for v, s, l in zip(z['vpaths'], z['starts'], z['labels'])]
+    return z['probs'], z['preds'], z['labels'], recs
+
+
 def print_report(res, classes, cfg):
     """Resumen por consola del resultado de score_predictions(): primero ventanas, luego videos."""
     win, vid = res['window'], res['video']

@@ -47,27 +47,63 @@ su md5 y hace una prueba de importación).
 
 ```bash
 # 1. (entorno del proyecto) exportar el estudiante destilado de la etapa 3
-python 1_export_onnx.py --run-dir ../3-optimization/outputs/<id_estudiante>
+# (los pesos van en workspace/weights/<id>/ con best.pt + run.yaml; --data-root solo si el data_root
+#  de run.yaml ya no existe, p. ej. ../data/peru-crime5)
+python 1_export_onnx.py --run-dir ../weights/<id_estudiante> [--data-root ../data/peru-crime5]
 
 # 2. (entorno del toolkit) primero medir la velocidad del simulador, luego correr completo
 source ~/venvs/rknn/bin/activate
-python 2_build_rknn.py --export-dir artifacts/<id> --variants w8a8 --probe
-python 2_build_rknn.py --export-dir artifacts/<id> --variants fp16 w8a8 --workers 4
+python 2_build_rknn.py --export-dir artifacts/<id> --builds w8a8 --probe
+python 2_build_rknn.py --export-dir artifacts/<id> --workers 4        # las construcciones de `run:` en builds.yaml
 
 # 3. (entorno del proyecto) puntuar
 python 3_score.py --export-dir artifacts/<id>        # -> results/rknn_export.csv
 ```
 
-`2_build_rknn.py` es reanudable (trozos de `--chunk-size` fotogramas guardados en `emb_cache/`).
+`2_build_rknn.py` es reanudable (trozos de `--chunk-size` fotogramas guardados en `emb_cache/<nombre>/`).
+Cada carpeta de trozos guarda la firma de su construcción: si cambias algoritmo, calibración, ONNX, etc.,
+los trozos viejos se borran y se recalculan en lugar de reutilizarse.
+
+### Construcciones (`builds.yaml`)
+
+Lo que construye `2_build_rknn.py` se define en `builds.yaml`: cada entrada de `builds` tiene un
+**nombre**, una `variant` base y sus parámetros (`algorithm`, `quantized_method`, `calib_limit`,
+`hybrid_cos_thresh`, `opt_level`, `flash_attention`); lo que falte sale de `defaults`. Todos los archivos
+llevan el nombre (`backbone_<nombre>.rknn`, `emb_<nombre>.npy`, `build_info_<nombre>.json`), así que
+varias opciones de cuantización conviven y `3_score.py` las puntúa como filas distintas.
+
+```bash
+python 2_build_rknn.py --export-dir artifacts/<id> --builds w8a8_kl w8a8_mmse w8a8_hybrid
+python 3_score.py --export-dir artifacts/<id>      # puntúa todos los emb_*.npy
+```
+
+Para probar otra opción, añade una entrada al YAML (p. ej. `w8a8_mmse_30: {variant: w8a8, algorithm: mmse, calib_limit: 30}`).
+`--algorithm`, `--calib-limit`, etc. por CLI pisan el YAML en todas las construcciones elegidas.
+`mmse` es muy lento (recomienda 20-50 imágenes de calibración).
 
 ### Variantes
 
-| Variante | Descripción |
+| Variante base (`variant`) | Descripción |
 |---|---|
 | `fp16` | sin cuantizar |
 | `w8a8` | int8 en pesos y activaciones, calibrado con ~100 imágenes de **train** |
 | `w8a8_hybrid` | int8 con las capas más sensibles en fp16 (`auto_hybrid`) |
 | `w4a16` | pesos de 4 bit, activaciones fp16 |
+
+## Prueba de cuantización por backbone (`quant_check.py`)
+
+Aparte del flujo 1→2→3. Para varios backbones de timm **sin entrenar** (pesos de ImageNet) mide cuánto
+sobrevive el embedding a la cuantización int8 de RKNN (coseno frente a PyTorch fp32), para decidir a qué
+backbone destilar antes de gastar entrenamiento. Corre en el venv del toolkit y reutiliza la calibración y
+los fotogramas de test de una exportación del paso 1.
+
+```bash
+python quant_check.py --export-dir artifacts/<id>        # resnet18, mobilenetv2/v3, convnextv2_femto, mobilevit_xs (control)
+python quant_check.py --export-dir artifacts/<id> --models resnet34 regnety_008 --builds fp16 w8a8 w8a8_kl
+```
+
+Salida: `results/quant_check.csv` (una fila por modelo y construcción; un fallo de conversión queda en la columna `error`).
+Los pesos de ImageNet no son los afinados, así que es un indicador de familias, no el número final.
 
 ## Decisiones de diseño
 
@@ -93,3 +129,14 @@ python 3_score.py --export-dir artifacts/<id>        # -> results/rknn_export.cs
 
 `artifacts/{run_id}/` (ignorada por git): ONNX, `.rknn`, calibración, fotogramas, embeddings, logs.
 `results/rknn_export.csv`: una fila por variante con tamaño, fidelidad y AUC de ventana/video.
+
+## Reportes de experimentos
+
+Cada vez que se ejecuta un script de esta etapa se escribe un reporte en `reports/` (uno por ejecución, con la fecha en el nombre,
+sin sobrescribir los anteriores): `AAAAMMDD-HHMMSS_{script}[_{run_id}].md` para leer y `.json` con lo mismo para procesar. Sirve para
+seguir el avance de la etapa y para **reanudar o replicar en otro equipo**: trae el estado (completado / falló / interrumpido), el
+comando exacto y desde qué carpeta lanzarlo, todos los parámetros (también los valores por defecto) y la configuración completa
+(los YAML se incluyen enteros), la huella de las entradas (tamaño, sha256, archivos por carpeta), el entorno (servidor, Python,
+versiones de los paquetes, GPU, ffmpeg y `pip freeze`), los resultados, los archivos de salida y las instrucciones de reanudación.
+El reporte se escribe en cuanto se conocen los parámetros, así que si el proceso se cae queda igual. Lo genera `../run_report.py`
+(solo biblioteca estándar); no se mezcla con los de las otras etapas.

@@ -23,6 +23,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # raíz de 4-export/ (agrega también 2-modelling/)
+sys.path.insert(1, str(Path(__file__).resolve().parents[1]))   # raíz de workspace/ (run_report.py)
+from run_report import RunReport, current
 
 import numpy as np
 import torch
@@ -64,7 +66,8 @@ def main():
     window_index, labels = win["window_index"], win["labels"]
     recs = [tuple(r) for r in json.loads((export_dir / "test_records.json").read_text())]
 
-    variants = args.variants or sorted(p.stem[len("emb_"):] for p in export_dir.glob("emb_*.npy"))
+    variants = args.variants or sorted(v for v in (p.stem[len("emb_"):] for p in export_dir.glob("emb_*.npy"))
+                                       if v not in ("torch_fp32", "onnx_fp32"))  # referencias propias, no variantes RKNN
     print(f"Variantes RKNN a puntuar: {variants or 'ninguna'}")
 
     # ── Referencia PyTorch ──────────────────────────────────────────────────
@@ -98,7 +101,7 @@ def main():
             "run_id": meta["run_id"], "backbone": meta["backbone"],
             "target_platform": (info or {}).get("target_platform", "n/a"), "variant": name,
             "backbone_size_mb": round(size_mb, 3), "n_frames": len(emb), **fid,
-            **{k: flat[f"test_{k}"] for k in ("window_auc_macro", "window_auc_binary", "video_auc_macro",
+            **{f"test_{k}": flat[f"test_{k}"] for k in ("window_auc_macro", "window_auc_binary", "video_auc_macro",
                                               "video_auc_binary", "window_accuracy", "video_accuracy")},
             "quantized_dtype": (info or {}).get("quantized_dtype", "none"),
             "quantized_algorithm": (info or {}).get("quantized_algorithm", "none"),
@@ -111,7 +114,12 @@ def main():
 
     write_rows(args.out, rows, meta["run_id"])
     print(f"\nGuardado en {args.out}")
+    current().set_run_id(meta["run_id"])
+    current().add_results({f"{r['variant']}.{k}": v for r in rows for k, v in r.items() if isinstance(v, (int, float))},
+                          section="variants")
+    current().add_output(args.out)
 
 
 if __name__ == "__main__":
-    main()
+    with RunReport(Path(__file__).resolve().parent, "3_score"):
+        main()

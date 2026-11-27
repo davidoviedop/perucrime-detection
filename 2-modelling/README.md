@@ -155,6 +155,15 @@ Por clase (recall / AUC), ventana → video:
   original. Si regeneras el dataset con la etapa 1, los clips se recodifican desde los videos
   crudos y las cifras pueden variar ligeramente.
 
+## Opciones agregadas para la ablación (etapa 5)
+
+`Config` tiene cuatro campos nuevos cuyo valor por defecto reproduce el comportamiento anterior (un checkpoint
+existente se evalúa igual): `temporal_module` (`transformer` | `none` | `bilstm`), `warmup_epochs` (calentamiento lineal
+del LR por paso; 0 = sin él), `grad_accum` (lotes acumulados por paso; 1 = sin acumular) y `lr_threshold_mode`
+(`rel` | `abs`). `lib/mil.py` expone además las piezas de la puntuación por video por separado (`anomaly_score`,
+`class_probs`, `hard_decision`, `argmax_decision`; `mil_aggregate_by_video` no cambió) y `2_evaluate.py` guarda las
+probabilidades por ventana en `outputs/{run_id}/preds_{split}.npz`.
+
 ## Qué cambió respecto del script original
 
 Todo el código viene de `2.5-model/models/mil_opt/opt_convbase_v2.py` (el profesor) y de las
@@ -190,3 +199,14 @@ división por cantidad de ventanas.
   la **parada temprana** corta la corrida; un checkpoint **incompatible** se descarta y se
   empieza de cero; con `--wandb` (modo offline) se registran métricas, matrices de confusión
   y artefactos sin errores.
+
+## Reportes de experimentos
+
+Cada vez que se ejecuta un script de esta etapa se escribe un reporte en `reports/` (uno por ejecución, con la fecha en el nombre,
+sin sobrescribir los anteriores): `AAAAMMDD-HHMMSS_{script}[_{run_id}].md` para leer y `.json` con lo mismo para procesar. Sirve para
+seguir el avance de la etapa y para **reanudar o replicar en otro equipo**: trae el estado (completado / falló / interrumpido), el
+comando exacto y desde qué carpeta lanzarlo, todos los parámetros (también los valores por defecto) y la configuración completa
+(los YAML se incluyen enteros), la huella de las entradas (tamaño, sha256, archivos por carpeta), el entorno (servidor, Python,
+versiones de los paquetes, GPU, ffmpeg y `pip freeze`), los resultados, los archivos de salida y las instrucciones de reanudación.
+El reporte se escribe en cuanto se conocen los parámetros, así que si el proceso se cae queda igual. Lo genera `../run_report.py`
+(solo biblioteca estándar); no se mezcla con los de las otras etapas.

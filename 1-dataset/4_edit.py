@@ -34,6 +34,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # raíz de 1-dataset/
+sys.path.insert(1, str(Path(__file__).resolve().parents[1]))   # raíz de workspace/ (run_report.py)
+from run_report import RunReport, current
 
 from lib.common.paths import CLIPS_CSV, ITEMS_CSV, RAW_DIR
 from lib.editing.app import create_app
@@ -72,4 +74,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from lib.common import paths as _p
+    with RunReport(_p.DATASET_DIR, "4_edit", stopped_ok=True,
+                   watch=[_p.ITEMS_CSV, _p.CLIPS_CSV, _p.SPLIT_CSV, _p.RAW_DIR, _p.CLIPS_DIR, _p.DATASET_OUT]):
+        main()

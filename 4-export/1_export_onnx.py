@@ -27,6 +27,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # raíz de 4-export/ (agrega también 2-modelling/)
+sys.path.insert(1, str(Path(__file__).resolve().parents[1]))   # raíz de workspace/ (run_report.py)
+from run_report import RunReport, current
 
 import json
 
@@ -129,9 +131,15 @@ def main():
                      "n_test_frames": int(len(frames)), "n_test_windows": len(test_recs)})
 
     save_meta(out_dir, meta)
+    current().set_run_id(run_id)
+    current().set_config('config', cfg.to_dict())
+    current().add_input('run_dir', run_dir)
+    current().add_results(meta, section='export_meta')
+    current().add_output(out_dir, 'carpeta de exportación (ONNX, calibración, fotogramas de test, export_meta.json)')
     print(f"\nexport_meta.json listo. Siguiente paso (entorno del toolkit):\n"
           f"  source ~/venvs/rknn/bin/activate && python 2_build_rknn.py --export-dir {out_dir}")
 
 
 if __name__ == "__main__":
-    main()
+    with RunReport(Path(__file__).resolve().parent, "1_export_onnx"):
+        main()

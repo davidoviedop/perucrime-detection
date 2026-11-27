@@ -26,7 +26,7 @@ from .scoring import scoring_dict
 def run_epoch(model, loader, criterion, optimizer=None, scheduler=None,
               device='cpu', train=True, n_classes=2, normal_idx=-1,
               clip_grad=1.0, desc='', scheduler_step='epoch',
-              amp=False, scaler=None):
+              amp=False, scaler=None, accum_steps=1, warmup_total_steps=0, step_offset=0):
     """Época genérica de entrenamiento o evaluación.
 
     Devuelve (loss_promedio, auc, bin_auc, metrics).
@@ -45,34 +45,50 @@ def run_epoch(model, loader, criterion, optimizer=None, scheduler=None,
       la memoria de activaciones en CUDA. scaler es el GradScaler que des-escala los
       gradientes antes del paso del optimizador; es obligatorio si amp=True y train=True
       (el backward en fp16 solo hace underflow de los gradientes pequeños).
+
+    accum_steps: lotes que se acumulan por paso del optimizador (1 = sin acumulación).
+    warmup_total_steps / step_offset: calentamiento lineal del LR, por paso del optimizador: mientras
+      step_offset + paso < warmup_total_steps el LR de cada grupo es base × (paso + 1) / warmup_total_steps
+      (base = el LR que tenía el grupo al empezar la época); al terminar la época se restaura la base.
     """
     model.train() if train else model.eval()
     tot_loss, all_probs, all_labels, all_preds = 0.0, [], [], []
     ctx = torch.enable_grad() if train else torch.no_grad()
     device_type = 'cuda' if str(device).startswith('cuda') else 'cpu'
+    warming = train and warmup_total_steps > 0 and step_offset < warmup_total_steps
+    base_lrs = [g['lr'] for g in optimizer.param_groups] if warming else None
+    n_batches = len(loader)
     with ctx:
-        for x, y in tqdm(loader, desc=f'  {desc}', leave=False,
-                         unit='batch', disable=not desc):
+        for i, (x, y) in enumerate(tqdm(loader, desc=f'  {desc}', leave=False,
+                                        unit='batch', disable=not desc)):
             x, y = x.to(device), y.to(device)
-            if train:
+            if train and i % accum_steps == 0:
                 optimizer.zero_grad()
             with torch.autocast(device_type=device_type, enabled=amp):
                 logits = model(x)
                 loss   = criterion(logits, y)
             if train:
+                back_loss = loss / accum_steps if accum_steps > 1 else loss
+                step_now = (i + 1) % accum_steps == 0 or i == n_batches - 1
+                if step_now and warming:
+                    factor = min(1.0, (step_offset + i // accum_steps + 1) / warmup_total_steps)
+                    for g, base in zip(optimizer.param_groups, base_lrs):
+                        g['lr'] = base * factor
                 if amp:
-                    scaler.scale(loss).backward()
-                    if clip_grad:
-                        scaler.unscale_(optimizer)
-                        nn.utils.clip_grad_norm_(model.parameters(), clip_grad)
-                    scaler.step(optimizer)
-                    scaler.update()
+                    scaler.scale(back_loss).backward()
+                    if step_now:
+                        if clip_grad:
+                            scaler.unscale_(optimizer)
+                            nn.utils.clip_grad_norm_(model.parameters(), clip_grad)
+                        scaler.step(optimizer)
+                        scaler.update()
                 else:
-                    loss.backward()
-                    if clip_grad:
-                        nn.utils.clip_grad_norm_(model.parameters(), clip_grad)
-                    optimizer.step()
-                if scheduler is not None and scheduler_step == 'batch':
+                    back_loss.backward()
+                    if step_now:
+                        if clip_grad:
+                            nn.utils.clip_grad_norm_(model.parameters(), clip_grad)
+                        optimizer.step()
+                if step_now and scheduler is not None and scheduler_step == 'batch':
                     scheduler.step()
             tot_loss += loss.item() * len(y)
             # Softmax en fp32 sin importar amp: las filas en fp16 no suman exactamente
@@ -86,6 +102,9 @@ def run_epoch(model, loader, criterion, optimizer=None, scheduler=None,
             all_preds.extend(logits.argmax(1).detach().cpu().tolist())
             all_labels.extend(y.cpu().tolist())
 
+    if warming:
+        for g, base in zip(optimizer.param_groups, base_lrs):
+            g['lr'] = base
     avg_loss = tot_loss / max(len(all_labels), 1)
     auc, bin_auc = safe_auc(all_labels, all_probs, n_classes, normal_idx)
     metrics = classification_metrics(all_labels, all_preds, n_classes)
@@ -122,18 +141,19 @@ def build_optimizer(model, cfg):
     """AdamW con tres grupos de parámetros (backbone entrenable, transformer temporal, cabeza).
     Los grupos vacíos se omiten: la línea base UniFormer solo tiene cabeza (backbone congelado)."""
     groups = [
-        ([p for p in model.backbone.parameters() if p.requires_grad], cfg.lr_backbone),
-        (list(model.temporal.parameters()) if hasattr(model, 'temporal') else [], cfg.lr_temporal),
-        (list(model.head.parameters()), cfg.lr_head),
+        ('backbone', [p for p in model.backbone.parameters() if p.requires_grad], cfg.lr_backbone),
+        ('temporal', list(model.temporal.parameters()) if hasattr(model, 'temporal') else [], cfg.lr_temporal),
+        ('head', list(model.head.parameters()), cfg.lr_head),
     ]
-    return optim.AdamW([{'params': ps, 'lr': lr} for ps, lr in groups if ps], weight_decay=cfg.weight_decay)
+    return optim.AdamW([{'params': ps, 'lr': lr, 'name': name} for name, ps, lr in groups if ps],
+                       weight_decay=cfg.weight_decay)
 
 
 def build_scheduler(optimizer, cfg):
     return optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='max',
         factor=cfg.lr_factor, patience=cfg.lr_sched_patience,
-        threshold=cfg.lr_threshold, min_lr=cfg.lr_min,
+        threshold=cfg.lr_threshold, threshold_mode=cfg.lr_threshold_mode, min_lr=cfg.lr_min,
     )
 
 
@@ -203,11 +223,15 @@ def fit(model, train_loader, val_loader, vl_recs, criterion, optimizer, schedule
     print(f'Training epochs {start_epoch}–{cfg.epochs} on {device}  '
           f'(early-stop patience={cfg.patience}) ...')
     patience_counter = 0
+    accum = max(1, int(cfg.grad_accum))
+    steps_per_epoch = -(-len(train_loader) // accum)            # pasos del optimizador por época
+    warmup_total = int(cfg.warmup_epochs) * steps_per_epoch
     for epoch in trange(start_epoch, cfg.epochs + 1, desc='Epochs', unit='ep'):
         tr_loss, tr_auc, tr_bin_auc, tr_metrics = run_epoch(
             train_model, train_loader, criterion, optimizer, None,
             device, train=True, n_classes=n_classes, normal_idx=normal_idx,
-            desc='train', amp=amp, scaler=scaler)
+            desc='train', amp=amp, scaler=scaler, accum_steps=accum,
+            warmup_total_steps=warmup_total, step_offset=(epoch - 1) * steps_per_epoch)
         vl_loss, vl_auc, vl_bin_auc, vl_metrics = run_epoch(
             model, val_loader, criterion,
             device=device, train=False, n_classes=n_classes, normal_idx=normal_idx,
@@ -249,7 +273,10 @@ def fit(model, train_loader, val_loader, vl_recs, criterion, optimizer, schedule
         history['train_f1_macro'].append(tr_metrics['f1_macro'])
         history['val_f1_macro'].append(vl_metrics['f1_macro'])
 
-        lr_backbone, lr_temporal, lr_head = (g['lr'] for g in optimizer.param_groups)
+        # Los grupos vacíos se omiten del optimizador (backbone congelado, sin módulo temporal), así
+        # que los LR se buscan por nombre; un grupo ausente se registra como nan.
+        group_lr = {g.get('name'): g['lr'] for g in optimizer.param_groups}
+        lr_backbone, lr_temporal, lr_head = (group_lr.get(n, float('nan')) for n in ('backbone', 'temporal', 'head'))
         epoch_log = {
             'epoch': epoch,
             'train_loss': tr_loss,        'val_loss': vl_loss,

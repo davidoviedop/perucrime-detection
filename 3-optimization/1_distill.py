@@ -24,6 +24,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # raíz de 3-optimization/ (agrega también 2-modelling/)
+sys.path.insert(1, str(Path(__file__).resolve().parents[1]))   # raíz de workspace/ (run_report.py)
+from run_report import RunReport, current
 
 from optimization import STAGE_DIR   # al importar `optimization` queda lib/ de la etapa 2 en sys.path
 from lib.cli import add_override_args, add_tracking_args, parse_overrides
@@ -62,6 +64,9 @@ def main():
         raise SystemExit(f"el profesor no tiene {teacher_dir / 'best.pt'}: entrénalo con 2-modelling/1_train.py")
 
     cfg, distill_params = dcfg.split()
+    current().set_config('distillation', distill_params)
+    current().add_input('teacher_run', teacher_dir)
+    current().add_input('teacher_best.pt', teacher_dir / 'best.pt')
     criterion = DistillationLoss(dcfg.kd_temperature, dcfg.kd_alpha, label_smoothing=cfg.label_smoothing)
     print(f'Loss: alpha*CE + (1-alpha)*T^2*KL  alpha={dcfg.kd_alpha}  T={dcfg.kd_temperature}  '
           f'(CE label_smoothing={cfg.label_smoothing}; profesor {teacher_dir.name} -> estudiante {cfg.backbone})')
@@ -90,4 +95,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with RunReport(Path(__file__).resolve().parent, "1_distill"):
+        main()

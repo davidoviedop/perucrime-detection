@@ -1,54 +1,60 @@
 """
 ablation/suite.py — define, entrena y evalúa las corridas de una ablación.
 
-Una *suite* es un YAML (config/*.yaml) con una configuración base y una lista de variantes.
-Cada variante cambia una sola cosa respecto de `reference`:
+Una *suite* es un YAML (config/*.yaml) con una configuración base y una lista de variantes; cada
+variante cambia un campo de Config de la etapa 2 respecto de la referencia (diseño OFAT: un factor a
+la vez), y se corre con varias semillas:
 
-    - name: temporal_mean              # id de la variante
-      model: {temporal: mean}          # variante de arquitectura (ver variants.py)
-      set: {label_smoothing: 0.0}      # campos de Config de la etapa 2 que se pisan
-      sampler: uniform                 # 'balanced' (por defecto, frecuencia inversa) o 'uniform'
+    - id: A1
+      question: ¿Hace falta modelar el tiempo?
+      set: {temporal_module: none}
 
-Cada (variante, semilla) es una corrida de la etapa 2: outputs/{suite}/{variante}_s{semilla}/
-con best.pt, last.pt, run.yaml, history.csv y además, escritos aquí,
+Cada (variante, semilla) es una corrida de la etapa 2: outputs/{suite}/{id}_s{semilla}/ con best.pt,
+last.pt, run.yaml, history.csv y, escritos aquí:
   metrics_val.json, metrics_test.json   mismas métricas que 2_evaluate.py
-  preds_val.npz, preds_test.npz          probabilidades por ventana (para re-puntuar sin GPU)
-  variant.json                           qué se cambió, parámetros, época del mejor modelo
-Una corrida con metrics_test.json se da por terminada; con best.pt pero sin métricas solo se
-evalúa; con last.pt se reanuda (el comportamiento de lib/pipeline.py).
+  preds_val.npz, preds_test.npz          probabilidades por ventana (para M1–M12 y el bootstrap)
+  variant.json                           qué se cambió, parámetros, GFLOPs, época del mejor modelo, tiempo
+Una corrida con las métricas escritas se da por terminada; con last.pt se reanuda; con best.pt pero sin
+métricas solo se evalúa (el comportamiento de lib/pipeline.py). Reglas de la suite (ver README): todas
+las corridas usan el mismo split, el mismo protocolo y las mismas semillas.
 """
 import gc
 import json
+import platform
+import shlex
+import time
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
+import timm
 import torch
 import yaml
-from torch.utils.data import DataLoader
+from torch.utils.flop_counter import FlopCounterMode
 
+from lib.cli import resolve_data_root
 from lib.config import Config
-from lib.evaluation import score_predictions
-from lib.model import count_parameters
+from lib.dataset import build_loaders
+from lib.evaluation import score_predictions, save_predictions
+from lib.model import build_model, count_parameters
 from lib.pipeline import train_run
 from lib.runs import load_run_info
 from lib.training import evaluate
+from run_report import RunReport, current
 
-from .variants import build_ablation_model
-
+from . import STAGE_DIR
 
 @dataclass
 class RunSpec:
-    variant: str
+    vid: str                   # id de la variante: A0, A1, …
     seed: int
     overrides: dict = field(default_factory=dict)
-    model: dict = field(default_factory=dict)
-    sampler: str = 'balanced'
+    question: str = ''
 
     @property
     def run_id(self) -> str:
-        return f'{self.variant}_s{self.seed}'
+        return f'{self.vid}_s{self.seed}'
 
 
 # ── Definición de la suite ─────────────────────────────────────────────────────
@@ -57,72 +63,86 @@ def load_suite(path) -> dict:
     path = Path(path)
     suite = yaml.safe_load(path.read_text())
     suite['_dir'] = path.parent
+    suite['_path'] = path.resolve()
     suite.setdefault('name', path.stem)
-    suite.setdefault('reference', 'reference')
     suite.setdefault('common', {})
-    suite.setdefault('seeds', [42])
-    names = [v['name'] for v in suite['variants']]
-    if len(set(names)) != len(names):
-        raise SystemExit('hay variantes con el mismo nombre en la suite')
-    if suite['reference'] not in names:
+    suite.setdefault('seeds', [42, 43, 44])
+    suite.setdefault('eval_splits', ['val', 'test'])
+    ids = [v['id'] for v in suite['variants']]
+    if len(set(ids)) != len(ids):
+        raise SystemExit('hay variantes con el mismo id en la suite')
+    suite.setdefault('reference', ids[0])
+    if suite['reference'] not in ids:
         raise SystemExit(f"la suite debe incluir la variante de referencia {suite['reference']!r}")
-    for v in suite['variants']:
-        if v.get('sampler', 'balanced') not in ('balanced', 'uniform'):
-            raise SystemExit(f"{v['name']}: sampler debe ser 'balanced' o 'uniform'")
     return suite
 
 
 def expand(suite, only=None, seeds=None) -> list[RunSpec]:
-    seeds = seeds or suite['seeds']
+    only = set(only or [])
+    unknown = only - {v['id'] for v in suite['variants']}
+    if unknown:
+        raise SystemExit(f'variantes desconocidas en --only: {sorted(unknown)}')
     specs = []
     for v in suite['variants']:
-        if only and v['name'] not in only and v['name'] != suite['reference']:
+        if only and v['id'] not in only and v['id'] != suite['reference']:
             continue
-        for seed in seeds:
-            specs.append(RunSpec(v['name'], int(seed), dict(v.get('set') or {}),
-                                 dict(v.get('model') or {}), v.get('sampler', 'balanced')))
-    if only:
-        unknown = set(only) - {v['name'] for v in suite['variants']}
-        if unknown:
-            raise SystemExit(f'variantes desconocidas en --only: {sorted(unknown)}')
+        for seed in (seeds or suite['seeds']):
+            specs.append(RunSpec(v['id'], int(seed), dict(v.get('set') or {}), v.get('question', '')))
     return specs
 
 
 def make_config(suite, spec: RunSpec, cli_overrides=None) -> Config:
     base = (suite['_dir'] / suite['base_config']).resolve()
     overrides = {**suite['common'], **spec.overrides, **(cli_overrides or {}),
-                 'seed': spec.seed, 'wandb_run_name': f"{suite['name']}-{spec.run_id}"}
+                 'seed': spec.seed, 'wandb_run_name': f'abl-{spec.vid}-s{spec.seed}'}
     return Config.from_yaml(base, **overrides)
 
 
+def environment_info() -> dict:
+    """Se guarda en run.yaml (`extra`) para saber en qué servidor y con qué versiones corrió cada corrida."""
+    return {'server': platform.node(), 'torch': str(torch.__version__), 'timm': str(timm.__version__),
+            'cuda': str(torch.version.cuda), 'gpu': torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}
+
+
 # ── Una corrida ───────────────────────────────────────────────────────────────
-
-def _uniform_train_loader(loader, cfg):
-    """Mismo dataset de entrenamiento, pero con orden aleatorio uniforme (sin balancear por clase)."""
-    return DataLoader(loader.dataset, batch_size=cfg.batch_size, shuffle=True,
-                      num_workers=cfg.num_workers, pin_memory=True)
-
 
 def _json_default(o):
     return o.tolist() if hasattr(o, 'tolist') else float(o)
 
 
-def evaluate_run(out_dir: Path, loaders: dict, factory, spec: RunSpec | None = None):
-    """Evalúa best.pt en val y test; guarda métricas, predicciones por ventana y variant.json."""
+def gflops_per_window(model, cfg, device) -> float:
+    """GFLOPs (2 × MACs) de una pasada de una ventana (1, T, 3, H, W) con FlopCounterMode.
+    OJO: FlopCounterMode no cuenta las celdas LSTM (A2); su aporte es despreciable frente al backbone."""
+    model.eval()
+    x = torch.zeros(1, cfg.seq_len, 3, cfg.img_size[0], cfg.img_size[1], device=device)
+    with torch.no_grad(), FlopCounterMode(display=False) as counter:
+        model(x)
+    return counter.get_total_flops() / 1e9
+
+
+def evaluate_run(out_dir: Path, splits, spec: RunSpec | None = None, train_seconds=None):
+    """Evalúa best.pt en los splits indicados; guarda métricas, predicciones por ventana y variant.json."""
     out_dir = Path(out_dir)
-    cfg, classes, _ = load_run_info(out_dir)
-    normal_idx = classes.index('Normal') if 'Normal' in classes else -1
+    cfg, classes, sources = load_run_info(out_dir)
+    cls_to_idx = {c: i for i, c in enumerate(classes)}
+    normal_idx = cls_to_idx.get('Normal', -1)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     amp = device == 'cuda'
-    model = factory(cfg, len(classes), pretrained=False).to(device)
+
+    _, val_loader, test_loader, _, vl_recs, test_recs = build_loaders(
+        resolve_data_root(cfg.data_root), sources, classes, cls_to_idx, cfg.seq_len, cfg.stride,
+        tuple(cfg.img_size), cfg.batch_size, cfg.num_workers,
+        max_windows_per_video=cfg.max_windows_per_video, frame_stride=cfg.frame_stride)
+    loaders = {'val': (val_loader, vl_recs), 'test': (test_loader, test_recs)}
+
+    model = build_model(cfg, len(classes), pretrained=False).to(device)
     model.load_state_dict(torch.load(out_dir / 'best.pt', map_location=device, weights_only=True))
 
-    for split in ('val', 'test'):
-        loader, recs = loaders[f'{split}_loader'], loaders[f'{split}_recs']
+    for split in splits:
+        loader, recs = loaders[split]
         probs, preds, labels = evaluate(model, loader, device, len(classes), amp=amp)
         res = score_predictions(probs, preds, labels, recs, classes, normal_idx, cfg, split)
-        np.savez_compressed(out_dir / f'preds_{split}.npz', probs=probs, preds=preds, labels=labels,
-                            vpaths=np.array([r[0] for r in recs]), starts=np.array([r[1] for r in recs]))
+        save_predictions(out_dir / f'preds_{split}.npz', probs, preds, labels, recs)
         (out_dir / f'metrics_{split}.json').write_text(json.dumps({
             'run_id': out_dir.name, 'split': split, 'classes': classes, 'metrics': res['flat'],
             'confusion_matrix_window': res['window']['metrics']['confusion_matrix'],
@@ -130,7 +150,10 @@ def evaluate_run(out_dir: Path, loaders: dict, factory, spec: RunSpec | None = N
         }, indent=2, ensure_ascii=False, default=_json_default))
 
     total, trainable, _ = count_parameters(model)
-    info = {'run_id': out_dir.name, 'params_total': total, 'params_trainable': trainable}
+    info = {'run_id': out_dir.name, 'params_total': total, 'params_trainable': trainable,
+            'gflops_window': gflops_per_window(model, cfg, device)}
+    if train_seconds is not None:
+        info['train_seconds'] = round(train_seconds, 1)
     hist = out_dir / 'history.csv'
     if hist.exists():
         import csv
@@ -141,35 +164,59 @@ def evaluate_run(out_dir: Path, loaders: dict, factory, spec: RunSpec | None = N
             info['best_epoch'] = int(float(best['epoch']))
             info['best_val_auc'] = float(best['val_auc'])
     if spec is not None:
-        info.update({'variant': spec.variant, 'seed': spec.seed, 'set': spec.overrides,
-                     'model': spec.model, 'sampler': spec.sampler})
+        info.update({'id': spec.vid, 'seed': spec.seed, 'set': spec.overrides, 'question': spec.question})
+    info.update(environment_info())
     (out_dir / 'variant.json').write_text(json.dumps(info, indent=2, ensure_ascii=False))
     del model
 
 
+def run_command(suite, spec: RunSpec, outputs_dir: Path, cli_overrides, use_wandb, retrain) -> str:
+    """Comando que repite exactamente esta corrida (una variante y una semilla)."""
+    try:
+        suite_arg = suite['_path'].relative_to(STAGE_DIR).as_posix()
+    except ValueError:
+        suite_arg = str(suite['_path'])
+    parts = ['python', '1_run_ablation.py', '--suite', suite_arg, '--only', spec.vid, '--seeds', str(spec.seed),
+             '--outputs-dir', str(outputs_dir)]
+    for k, v in (cli_overrides or {}).items():
+        parts += ['--set', f'{k}={v if isinstance(v, str) else json.dumps(v)}']
+    if use_wandb:
+        parts.append('--wandb')
+    if retrain:
+        parts.append('--retrain')
+    return shlex.join(parts)
+
+
 def run_one(suite, spec: RunSpec, outputs_dir: Path, cli_overrides=None, use_wandb=False, retrain=False):
     out_dir = outputs_dir / spec.run_id
-    if (out_dir / 'metrics_test.json').exists() and not retrain:
-        print(f'[{spec.run_id}] ya terminada (metrics_test.json) — se omite (usa --retrain para repetirla)')
+    done = all((out_dir / f'metrics_{s}.json').exists() for s in suite['eval_splits'])
+    if done and not retrain:
+        print(f'[{spec.run_id}] ya terminada — se omite (usa --retrain para repetirla)')
         return out_dir
     cfg = make_config(suite, spec, cli_overrides)
-    held: dict = {}
-
-    def loaders_hook(loaders):
-        tl, vl, tel, trr, vlr, ter = loaders
-        if spec.sampler == 'uniform':
-            tl = _uniform_train_loader(tl, cfg)
-        held.update(val_loader=vl, test_loader=tel, val_recs=vlr, test_recs=ter)
-        return tl, vl, tel, trr, vlr, ter
-
-    def factory(c, n_classes, pretrained=None):
-        return build_ablation_model(c, n_classes, pretrained, **spec.model)
-
-    train_run(cfg, spec.run_id, outputs_dir, use_wandb=use_wandb, retrain=retrain,
-              model_factory=factory, loaders_hook=loaders_hook,
-              extra_info={'ablation': {'suite': suite['name'], 'variant': spec.variant,
-                                       'model': spec.model, 'sampler': spec.sampler, 'set': spec.overrides}})
-    evaluate_run(out_dir, held, factory, spec)
+    # Un reporte por corrida (variante × semilla) en 5-ablation/reports/, con todos los parámetros y métricas.
+    with RunReport(STAGE_DIR, 'ablation_run', run_id=spec.run_id, command=run_command(suite, spec, outputs_dir, cli_overrides,
+                                                                                       use_wandb, retrain)) as report:
+        report.add_info({'suite': suite['name'], 'variant': spec.vid, 'seed': spec.seed, 'question': spec.question,
+                         'changes_vs_reference': spec.overrides, 'cli_overrides': cli_overrides or {},
+                         'eval_splits': suite['eval_splits'], 'outputs_dir': str(outputs_dir)})
+        report.add_file('suite', suite['_path'])
+        report.add_file('base_config', (suite['_dir'] / suite['base_config']).resolve())
+        t0 = time.time()
+        train_run(cfg, spec.run_id, outputs_dir, use_wandb=use_wandb, retrain=retrain,
+                  extra_info={'ablation': {'suite': suite['name'], 'id': spec.vid, 'question': spec.question,
+                                           'set': spec.overrides, **environment_info()}})
+        evaluate_run(out_dir, suite['eval_splits'], spec, train_seconds=time.time() - t0)
+        # Todas las métricas quedan también en el reporte (además de metrics_*.json), para conservarlas entre corridas.
+        variant = json.loads((out_dir / 'variant.json').read_text())
+        report.add_results({k: v for k, v in variant.items() if k in ('params_total', 'params_trainable', 'gflops_window',
+                                                                     'train_seconds', 'epochs_run', 'best_epoch', 'best_val_auc')})
+        for split in suite['eval_splits']:
+            report.add_results(json.loads((out_dir / f'metrics_{split}.json').read_text())['metrics'], section=f'metrics_{split}')
+        for name in ('best.pt', 'last.pt', 'run.yaml', 'history.csv', 'variant.json', 'metrics_val.json', 'metrics_test.json',
+                     'preds_val.npz', 'preds_test.npz'):
+            if (out_dir / name).exists():
+                report.add_output(out_dir / name)
     return out_dir
 
 
@@ -177,9 +224,12 @@ def run_suite(suite, specs, outputs_dir: Path, cli_overrides=None, use_wandb=Fal
     """Corre todas las corridas; una que falle no detiene a las demás. Devuelve las que fallaron."""
     outputs_dir.mkdir(parents=True, exist_ok=True)
     failed = []
+    skipped = []
     for i, spec in enumerate(specs, 1):
-        print(f'\n{"=" * 78}\n[{i}/{len(specs)}] {spec.run_id}   (set={spec.overrides} model={spec.model} sampler={spec.sampler})\n{"=" * 78}')
+        print(f'\n{"=" * 78}\n[{i}/{len(specs)}] {spec.run_id}  {spec.question}  set={spec.overrides}\n{"=" * 78}')
         try:
+            if all((outputs_dir / spec.run_id / f'metrics_{s}.json').exists() for s in suite['eval_splits']) and not retrain:
+                skipped.append(spec.run_id)
             run_one(suite, spec, outputs_dir, cli_overrides, use_wandb, retrain)
         except Exception:
             traceback.print_exc()
@@ -188,4 +238,7 @@ def run_suite(suite, specs, outputs_dir: Path, cli_overrides=None, use_wandb=Fal
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+    current().add_results({'runs_requested': [s.run_id for s in specs], 'runs_failed': failed, 'runs_skipped_already_done': skipped,
+                           'runs_executed': [s.run_id for s in specs if s.run_id not in failed and s.run_id not in skipped]})
+    current().add_output(outputs_dir)
     return failed

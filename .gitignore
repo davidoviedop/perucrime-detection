@@ -1,3 +1,10 @@
 data/
 rknn/
 .venv/
+weights/
+outputs/
+results/
+reports/
+config/
+wandb/
+__pycache__/

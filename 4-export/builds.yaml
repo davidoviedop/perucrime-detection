@@ -1,0 +1,69 @@
+# builds.yaml — builds RKNN de 2_build_rknn.py. Cada entrada de `builds` es una construcción con
+# nombre propio; sus archivos se llaman backbone_<nombre>.rknn, emb_<nombre>.npy y
+# build_info_<nombre>.json, así que varias opciones de cuantización conviven sin pisarse y
+# 3_score.py las puntúa como filas distintas (la columna `variant` es el nombre).
+#
+# Campos de cada build (los que falten se toman de `defaults`):
+#   variant            fp16 | w8a8 | w8a8_hybrid | w4a16   (qué tipo de conversión)
+#   algorithm          normal | mmse | kl_divergence       (normal: rápido; mmse: más preciso y MUY lento;
+#                                                           kl_divergence: intermedio)
+#   quantized_method   channel | layer                     (granularidad de los pesos; channel suele ir mejor)
+#   calib_limit        N | null                            (usa solo las primeras N imágenes de calibración;
+#                                                           mmse recomienda 20-50)
+#   hybrid_cos_thresh  0.98                                (solo w8a8_hybrid: capas con coseno menor van a fp16;
+#                                                           subirlo = más capas en fp16 = más preciso y más grande)
+#   opt_level          0-3
+#   flash_attention    true | false
+#
+# Uso:
+#   python 2_build_rknn.py --export-dir artifacts/<id>                       # construye los de `run`
+#   python 2_build_rknn.py --export-dir artifacts/<id> --builds w8a8_mmse w8a8_kl
+#   python 2_build_rknn.py --export-dir artifacts/<id> --config otro.yaml
+# Después: python 3_score.py --export-dir artifacts/<id>   (puntúa todos los emb_*.npy que haya)
+
+target_platform: rv1126b
+
+# Qué se construye si no se pasa --builds
+run: [fp16, w8a8]
+
+defaults:
+  algorithm: normal
+  quantized_method: channel
+  calib_limit: null
+  hybrid_cos_thresh: 0.98
+  opt_level: 3
+  flash_attention: false
+
+builds:
+  fp16:
+    variant: fp16
+
+  # Línea base int8. En 8ac40pob dio coseno 0.135 vs fp32: el embedding queda destruido.
+  w8a8:
+    variant: w8a8
+
+  # Mismo int8 con otros algoritmos de calibración
+  w8a8_kl:
+    variant: w8a8
+    algorithm: kl_divergence
+  w8a8_mmse:
+    variant: w8a8
+    algorithm: mmse
+    calib_limit: 50
+  w8a8_layer:                     # pesos por capa en vez de por canal (suele ser peor; sirve de control)
+    variant: w8a8
+    quantized_method: layer
+
+  # Híbrido automático: las capas que pierden más se quedan en fp16
+  w8a8_hybrid:
+    variant: w8a8_hybrid
+  w8a8_hybrid_099:                # umbral más estricto: más capas en fp16
+    variant: w8a8_hybrid
+    hybrid_cos_thresh: 0.99
+  w8a8_hybrid_mmse:
+    variant: w8a8_hybrid
+    algorithm: mmse
+    calib_limit: 50
+
+  w4a16:
+    variant: w4a16

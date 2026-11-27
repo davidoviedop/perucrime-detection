@@ -11,7 +11,7 @@ y lo que se verificó.
 | 2. Modelado: ConvNeXtV2 + transformer temporal, puntuación de video con MIL | [`2-modelling/`](2-modelling/README.md) | listo para revisión (entrenar y evaluar; métricas de referencia reproducidas) |
 | 3. Optimización: destilación, poda y cuantización | [`3-optimization/`](3-optimization/README.md) | listo para revisión (destilación + barrido de compresión del estudiante y del profesor) |
 | 4. Exportación a RKNN (simulador, plataforma `rv1126b`) | [`4-export/`](4-export/README.md) | código escrito, sin ejecutar |
-| 5. Ablación: quita o cambia una pieza del modelo a la vez y reentrena | [`5-ablation/`](5-ablation/README.md) | código listo y probado con una corrida mínima; suite completa sin correr |
+| 5. Ablación de modelado: A0–A13 (una pieza a la vez, 3 semillas) y puntuación por video M1–M12 | [`5-ablation/`](5-ablation/README.md) | código listo y probado con corridas mínimas; suite completa sin correr |
 
 El modelo final es el estudiante MobileViT-XS destilado
 (`2.5-model/models/mil_opt/distil_convbase_v2.py` en el árbol de trabajo); las
@@ -20,3 +20,7 @@ etapas 2 y 3 contendrán únicamente los archivos de los que depende ese script.
 Convención: en cada etapa, los scripts principales están en la raíz de la carpeta
 con prefijo numérico según el orden del pipeline, y la lógica y las utilidades de
 cada parte viven en `lib/`.
+
+Reportes: cada ejecución de un script de cualquier etapa deja un reporte en la carpeta `reports/` de **su** etapa (parámetros,
+comando, entorno, huella de las entradas, resultados e instrucciones para reanudar o replicar en otro equipo). Ver
+[`run_report.py`](run_report.py) y la sección «Reportes de experimentos» del README de cada etapa.

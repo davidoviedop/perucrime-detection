@@ -18,6 +18,7 @@ Variantes (todas con la misma plataforma destino):
   w8a8_hybrid  int8 con las capas que más pierden convertidas a fp16 de forma automática
   w4a16        pesos en 4 bit y activaciones en fp16 (solo RK3576 / RV1126B)
 """
+import json
 import time
 from concurrent.futures import ProcessPoolExecutor
 from importlib import metadata
@@ -51,7 +52,7 @@ def check(ret, what):
 
 def make_rknn(onnx_path, meta, variant, target_platform, dataset_txt=None, algorithm="normal",
               opt_level=3, flash_attention=False, hybrid_cos_thresh=0.98,
-              verbose=True, log_file=None):
+              verbose=True, log_file=None, quantized_method="channel"):
     """config → load_onnx → build. Devuelve el objeto RKNN ya construido (listo para exportar o simular)."""
     from rknn.api import RKNN              # import perezoso: solo existe en el entorno del toolkit
 
@@ -67,6 +68,7 @@ def make_rknn(onnx_path, meta, variant, target_platform, dataset_txt=None, algor
     )
     if spec.get("quantized_dtype"):
         cfg["quantized_dtype"] = spec["quantized_dtype"]
+        cfg["quantized_method"] = quantized_method
     rknn.config(**cfg)
 
     check(rknn.load_onnx(model=str(onnx_path), inputs=[BACKBONE_IN], input_size_list=[[1, 3, h, w]]),
@@ -106,6 +108,25 @@ def plan_chunks(n_frames: int, size: int):
 
 def chunk_path(chunk_dir, i) -> Path:
     return Path(chunk_dir) / f"chunk_{i:04d}.npy"
+
+
+def prepare_chunk_dir(chunk_dir, signature: dict):
+    """Garantiza que los trozos en disco se calcularon con ESTA construcción.
+
+    La reanudación se salta los trozos que ya existen; si cambió el algoritmo, la calibración, el
+    ONNX, etc., reutilizarlos daría embeddings de otro modelo sin ningún aviso. Se guarda la
+    firma de la construcción junto a los trozos y, si no coincide (o los trozos no tienen firma),
+    se borran y se calculan de nuevo."""
+    d = Path(chunk_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    sig_file = d / "build_signature.json"
+    new = json.dumps(signature, sort_keys=True, indent=2)
+    chunks = list(d.glob("chunk_*.npy"))
+    if chunks and (not sig_file.exists() or sig_file.read_text() != new):
+        print(f"  los {len(chunks)} trozos de {d.name}/ vienen de otra construcción: se borran y se recalculan")
+        for f in chunks:
+            f.unlink()
+    sig_file.write_text(new)
 
 
 def run_chunks_sequential(rknn, frames, chunks, chunk_dir, log_every=1):

@@ -2,6 +2,23 @@
 # Entorno del proyecto (pasos 1 y 3):
 onnx
 onnxruntime
+scikit-learn     # lib/evaluation.py (paso 3)
+pyyaml           # builds.yaml (paso 2)
+
 # Entorno del toolkit (paso 2) — NO se instala con pip install -r: lo crea setup_rknn_env.sh
 # (venv ~/venvs/rknn con torch 2.4.0 CPU, numpy<=1.26.4 y rknn_toolkit2 2.3.2, que fijan versiones
 # incompatibles con las del entorno del proyecto).
+#
+# Si el venv del toolkit (aquí 4-export/rknn) se usa también para los pasos 1 y 3 — como se hizo con
+# 8ac40pob — necesita además lo siguiente, con estas versiones fijadas:
+#   setuptools<81     rknn-toolkit2 2.3.2 hace `import pkg_resources`, que setuptools>=81 ya no trae
+#                     (error: ModuleNotFoundError: No module named 'pkg_resources')
+#   onnx==1.16.1      rknn-toolkit2 2.3.2 usa `onnx.mapping`, eliminado en onnx recientes
+#                     (error: module 'onnx' has no attribute 'mapping'); 1.16.1 carga los .onnx del paso 1 (IR 8, opset 17)
+#   onnxruntime       para 1_export_onnx.py y 3_score.py
+#   scikit-learn      para 3_score.py
+#   pyyaml            para 2_build_rknn.py (builds.yaml)
+#   timm, torchvision para 1_export_onnx.py y 3_score.py
+# Ejemplo:  uv pip install "setuptools<81" "onnx==1.16.1" onnxruntime scikit-learn pyyaml
+# Nota: pip avisa de que rknn-toolkit2 pide torch<=2.4.0; ese venv tenía torch 2.15.0 y la conversión
+# ONNX -> RKNN funcionó igual.

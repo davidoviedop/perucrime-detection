@@ -24,6 +24,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # raíz de 2-modelling/
+sys.path.insert(1, str(Path(__file__).resolve().parents[1]))   # raíz de workspace/ (run_report.py)
+from run_report import RunReport, current
 
 from lib.cli import STAGE_DIR, add_override_args, add_tracking_args, parse_overrides
 from lib.config import Config
@@ -55,4 +57,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with RunReport(Path(__file__).resolve().parent, "1_train"):
+        main()

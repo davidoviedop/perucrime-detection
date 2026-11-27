@@ -119,3 +119,61 @@ def mil_aggregate_by_video(records, probs, preds, labels, n_classes, normal_idx,
         video_probs = [p[1] for p in video_probs]   # de vuelta a escalar P(clase=1)
 
     return video_preds, video_probs, video_anomaly_scores, video_labels, order
+
+
+# ── Piezas separadas de la puntuación (usadas por la ablación de la etapa 5) ────────────
+#
+# mil_aggregate_by_video() hace todo junto. Estas funciones separan sus tres operaciones para
+# poder cambiar cada una por su cuenta; hard_decision() reproduce exactamente su decisión dura.
+#
+#   anomaly_score()  ¿qué tan anómalo es el video?        (AUC binario, umbral)
+#   class_probs()    vector de probabilidades del video    (AUC multiclase)
+#   hard_decision()  la regla actual en dos etapas         (F1, exactitud)
+#   argmax_decision() alternativa: umbral + argmax de class_probs()
+
+def top_k_indices(anomaly_scores, top_k_fraction):
+    """Índices de las k ventanas más anómalas, con k = max(1, ceil(fracción × n)).
+    fracción = 1.0 usa todas las ventanas; una fracción casi 0 (p. ej. 1e-9) usa solo la máxima."""
+    k = max(1, math.ceil(top_k_fraction * len(anomaly_scores)))
+    return np.argsort(anomaly_scores)[-k:]
+
+
+def anomaly_score(win_probs, normal_idx, top_k_fraction):
+    """Promedio de 1 − P(Normal) de las k ventanas más anómalas del video."""
+    scores = 1.0 - np.asarray(win_probs)[:, normal_idx]
+    return float(scores[top_k_indices(scores, top_k_fraction)].mean())
+
+
+def class_probs(win_probs, normal_idx, top_k_fraction=1.0):
+    """Probabilidades por clase del video: promedio de los vectores de las k ventanas más
+    anómalas (fracción 1.0 = todas las ventanas, la forma actual del AUC multiclase)."""
+    win_probs = np.asarray(win_probs)
+    scores = 1.0 - win_probs[:, normal_idx]
+    return win_probs[top_k_indices(scores, top_k_fraction)].mean(axis=0)
+
+
+def hard_decision(win_probs, win_preds, normal_idx, top_k_fraction=0.1, anomaly_threshold=0.5):
+    """La decisión dura de mil_aggregate_by_video: anómalo si el promedio top-k supera el umbral;
+    la clase sale de un voto por mayoría entre esas k ventanas, sin que Normal vote."""
+    win_probs = np.asarray(win_probs)
+    scores = 1.0 - win_probs[:, normal_idx]
+    top_idx = top_k_indices(scores, top_k_fraction)
+    if float(scores[top_idx].mean()) < anomaly_threshold:
+        return int(normal_idx)
+    candidates = [win_preds[i] for i in top_idx if win_preds[i] != normal_idx]
+    if not candidates:
+        return int(win_preds[top_idx[-1]])
+    votes = Counter(candidates)
+    top = max(votes.values())
+    tied = [c for c, n in votes.items() if n == top]
+    mean_top = win_probs[top_idx].mean(axis=0)
+    return int(tied[0] if len(tied) == 1 else max(tied, key=lambda c: mean_top[c]))
+
+
+def argmax_decision(class_prob_vector, score, normal_idx, anomaly_threshold=0.5):
+    """Normal si el video no supera el umbral; si lo supera, la clase no Normal de mayor probabilidad."""
+    if score < anomaly_threshold:
+        return int(normal_idx)
+    p = np.array(class_prob_vector, dtype=float)
+    p[normal_idx] = -1.0
+    return int(np.argmax(p))

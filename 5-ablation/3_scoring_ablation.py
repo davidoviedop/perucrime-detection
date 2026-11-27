@@ -1,124 +1,139 @@
 """
-3_scoring_ablation.py — PASO 3 (sin entrenar): ablación de la puntuación por VIDEO.
+3_scoring_ablation.py — PASO 3 (sin entrenar): ablación de la puntuación por video, M1–M12.
 
-Toma una corrida ya entrenada (normalmente la referencia) y re-puntúa sus videos de test (y
-val) con otras formas de agrupar las ventanas, a partir de las probabilidades guardadas
-(preds_{split}.npz): distintos k y umbrales de la puntuación MIL de lib/mil.py, el voto por
-mayoría de todas las ventanas, la probabilidad media y el max-pooling. Es rápido y no usa GPU.
+Toma las predicciones por ventana (preds_{val,test}.npz) de las semillas de la referencia (A0) y
+re-puntúa los videos con las matrices de ablation/scoring.py. No usa GPU ni repite la inferencia.
 
-Con --shuffle-frames evalúa además el mismo modelo con el orden de los fotogramas de cada
-ventana barajado: mide cuánto usa realmente el modelo el orden temporal (necesita GPU y los datos).
+  M1–M5   agregación de anomalía     M6–M8  umbral     M9–M11  agregación multiclase     M12  decisión dura actual
+
+Se reporta media ± desviación entre semillas (val y test); para el AUC binario de M1–M5 y el AUC-Macro de
+M10–M11 también el Δ frente a la regla actual (M4 y M9) con IC 95 % por bootstrap pareado por video, sobre
+las probabilidades promediadas entre semillas. El umbral (M6–M8) es un punto de operación: se elige en
+VALIDACIÓN (mayor F1-Macro) y el test solo se reporta.
 
 Uso
 ---
-    python 3_scoring_ablation.py --run-dir outputs/mobilevit_xs/reference_s42
-    python 3_scoring_ablation.py --run-dir outputs/mobilevit_xs/reference_s42 --shuffle-frames
+    python 3_scoring_ablation.py                       # A0 de outputs/modelling/
+    python 3_scoring_ablation.py --run-dirs outputs/modelling/A0_s42 outputs/modelling/A0_s43 outputs/modelling/A0_s44
 """
 import argparse
-import csv
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # raíz de 5-ablation/
+sys.path.insert(1, str(Path(__file__).resolve().parents[1]))   # raíz de workspace/ (run_report.py)
+from run_report import RunReport, current
 
 import numpy as np
+from sklearn.metrics import roc_auc_score
 
-from ablation import RESULTS_DIR
-from lib.runs import load_run_info, load_run_extra
-from ablation.mil_variants import video_metrics
-
-TOP_K = [0.05, 0.10, 0.20, 0.50, 1.00]
-THRESHOLDS = [0.30, 0.40, 0.50, 0.60, 0.70]
-KEYS = [('video_auc_macro', 'AUC macro'), ('video_f1_macro', 'F1 macro'), ('video_auc_binary', 'AUC binario'),
-        ('video_accuracy', 'Exactitud')]
-
-
-def load_preds(run_dir, split):
-    z = np.load(run_dir / f'preds_{split}.npz')
-    recs = [(str(v), int(s), int(l)) for v, s, l in zip(z['vpaths'], z['starts'], z['labels'])]
-    return z['probs'], z['preds'], z['labels'], recs
+from ablation import OUTPUTS_DIR, RESULTS_DIR
+from ablation.report import fmt
+from ablation.scoring import ANOMALY, MULTICLASS, THRESHOLD, evaluate_all, group_by_video, per_video_arrays
+from ablation.stats import auc_macro, paired_delta_ci, stratified_video_draws
+from lib.evaluation import load_predictions
+from lib.runs import load_run_info
+from ablation.report import archive
 
 
-def shuffled_predictions(run_dir, cfg, classes, sources, split, seed=0):
-    """Predicciones del mejor modelo con el orden de los fotogramas de cada ventana barajado."""
-    import torch
-    from ablation.variants import build_ablation_model
-    from lib.cli import resolve_data_root
-    from lib.dataset import build_loaders
-    from lib.training import evaluate
-
-    cls_to_idx = {c: i for i, c in enumerate(classes)}
-    _, vl, tl, _, vr, tr = build_loaders(
-        resolve_data_root(cfg.data_root), sources, classes, cls_to_idx, cfg.seq_len, cfg.stride,
-        tuple(cfg.img_size), cfg.batch_size, cfg.num_workers,
-        max_windows_per_video=cfg.max_windows_per_video, frame_stride=cfg.frame_stride)
-    loader, recs = (tl, tr) if split == 'test' else (vl, vr)
-    opts = (load_run_extra(run_dir).get('ablation') or {}).get('model') or {}
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model = build_ablation_model(cfg, len(classes), pretrained=False, **opts).to(device)
-    model.load_state_dict(torch.load(run_dir / 'best.pt', map_location=device, weights_only=True))
-
-    g = torch.Generator().manual_seed(seed)
-
-    class Shuffled(torch.nn.Module):
-        def __init__(self, m):
-            super().__init__()
-            self.m = m
-
-        def forward(self, x):
-            return self.m(x[:, torch.randperm(x.shape[1], generator=g).to(x.device)])
-
-    probs, preds, labels = evaluate(Shuffled(model), loader, device, len(classes), amp=device == 'cuda')
-    return probs, preds, labels, recs
+def seed_averaged_videos(run_dirs, split):
+    runs = [load_predictions(d / f'preds_{split}.npz') for d in run_dirs]
+    recs = runs[0][3]
+    if any(r[3] != recs for r in runs[1:]):
+        raise SystemExit('las semillas tienen ventanas distintas')
+    probs = np.mean([r[0] for r in runs], axis=0)
+    return group_by_video(probs, runs[0][1], runs[0][2], recs)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Ablación de la puntuación por video")
-    parser.add_argument("--run-dir", type=Path, required=True, help="Carpeta de la corrida (outputs/.../reference_s42)")
-    parser.add_argument("--splits", nargs="+", default=["val", "test"], choices=["val", "test"])
-    parser.add_argument("--shuffle-frames", action="store_true",
-                        help="Evalúa también con el orden de los fotogramas barajado (GPU + datos)")
+    parser = argparse.ArgumentParser(description="Ablación de la puntuación por video (M1–M12)")
+    parser.add_argument("--run-dirs", nargs="+", type=Path, default=None,
+                        help="Corridas de la referencia (por defecto: outputs/modelling/A0_s*)")
+    parser.add_argument("--n-boot", type=int, default=2000)
     args = parser.parse_args()
 
-    run_dir = args.run_dir.resolve()
-    cfg, classes, sources = load_run_info(run_dir)
-    normal_idx = classes.index('Normal')
-    base = dict(top_k_fraction=cfg.mil_top_k_fraction, threshold=cfg.mil_anomaly_threshold)
+    run_dirs = [d.resolve() for d in (args.run_dirs or sorted((OUTPUTS_DIR / "modelling").glob("A0_s*")))]
+    if not run_dirs:
+        raise SystemExit("no hay corridas de A0 (corre primero: python 1_run_ablation.py --only A0)")
+    cfg, classes, _ = load_run_info(run_dirs[0])
+    normal_idx, n_classes = classes.index("Normal"), len(classes)
+    print(f"Referencia: {[d.name for d in run_dirs]}  ({n_classes} clases)")
 
-    grid = [('mil (referencia)', 'mil', base)]
-    grid += [(f'mil k={k:.0%}', 'mil', {**base, 'top_k_fraction': k}) for k in TOP_K if k != base['top_k_fraction']]
-    grid += [(f'mil umbral={t:.2f}', 'mil', {**base, 'threshold': t}) for t in THRESHOLDS if t != base['threshold']]
-    grid += [('voto de todas las ventanas', 'vote_all', {}), ('probabilidad media', 'mean_prob', {}),
-             ('max-pooling', 'max_pool', {'threshold': base['threshold']})]
+    results = {}   # (split, mid) -> {métrica: [valor por semilla]}
+    for split in ("val", "test"):
+        for d in run_dirs:
+            probs, preds, labels, recs = load_predictions(d / f"preds_{split}.npz")
+            res = evaluate_all(group_by_video(probs, preds, labels, recs), n_classes, normal_idx)
+            for mid, mets in res.items():
+                for k, v in mets.items():
+                    results.setdefault((split, mid), {}).setdefault(k, []).append(v)
 
-    rows = []
-    for split in args.splits:
-        if not (run_dir / f'preds_{split}.npz').exists():
-            print(f'(sin preds_{split}.npz en {run_dir}; se omite {split})')
-            continue
-        probs, preds, labels, recs = load_preds(run_dir, split)
-        for label, kind, params in grid:
-            m = video_metrics(kind, recs, probs, preds, labels, classes, normal_idx, **params)
-            rows.append({'split': split, 'scoring': label, **{k: m[k] for k, _ in KEYS}})
-        if args.shuffle_frames and split in args.splits:
-            sp, spred, slab, srecs = shuffled_predictions(run_dir, cfg, classes, sources, split)
-            m = video_metrics('mil', srecs, sp, spred, slab, classes, normal_idx, **base)
-            rows.append({'split': split, 'scoring': 'mil + fotogramas barajados', **{k: m[k] for k, _ in KEYS}})
+    def ms(split, mid, key):
+        v = np.array(results[(split, mid)].get(key, [np.nan]), dtype=float)
+        return fmt(float(np.nanmean(v)), float(np.nanstd(v, ddof=1)) if len(v) > 1 else float("nan"))
+
+    # bootstrap pareado sobre las probabilidades promediadas entre semillas (test)
+    videos = seed_averaged_videos(run_dirs, "test")
+    labels, anomaly, mprobs = per_video_arrays(videos, normal_idx)
+    draws = stratified_video_draws(labels, args.n_boot)
+
+    def anom_auc(mid):
+        return lambda ids: float("nan") if ids is not None and len(set((labels[ids] != normal_idx).tolist())) < 2 else \
+            roc_auc_score((labels != normal_idx).astype(int)[ids if ids is not None else slice(None)],
+                          anomaly[mid][ids if ids is not None else slice(None)])
+
+    def macro_auc(mid):
+        return lambda ids: auc_macro(labels if ids is None else labels[ids], mprobs[mid] if ids is None else mprobs[mid][ids])
+
+    L = [f"# Ablación de la puntuación por video (M1–M12) — referencia `{run_dirs[0].name.rsplit('_s', 1)[0]}`", "",
+         f"{len(run_dirs)} semillas; media ± desviación. Δ con IC 95 % por bootstrap pareado por video "
+         f"({args.n_boot} remuestreos estratificados), sobre las probabilidades promediadas entre semillas.", ""]
+
+    L += ["## Agregación de anomalía (M1–M5): cambia el AUC binario por video", "",
+          "| ID | Agregación | AUC binario test | Δ vs M4 [IC 95 %] | F1-Macro test | Exactitud test | AUC binario val |", "|---|---|---|---|---|---|---|"]
+    for mid, (desc, _) in ANOMALY.items():
+        delta = "—" if mid == "M4" else "{:+.3f} [{:+.3f}, {:+.3f}]".format(*paired_delta_ci(anom_auc("M4"), anom_auc(mid), draws))
+        L.append(f"| {mid} | {desc} | {ms('test', mid, 'auc_binary')} | {delta} | {ms('test', mid, 'f1_macro')} | "
+                 f"{ms('test', mid, 'accuracy')} | {ms('val', mid, 'auc_binary')} |")
+
+    best = max(THRESHOLD, key=lambda m: np.nanmean(results[("val", m)]["f1_macro"]))
+    L += ["", "## Umbral (M6–M8): no cambia ningún AUC; punto de operación", "",
+          f"Elegido en validación (mayor F1-Macro): **{best}** (umbral {THRESHOLD[best]:.2f}).", "",
+          "| ID | Umbral | F1-Macro val | Exactitud val | F1-Macro test | Exactitud test |", "|---|---|---|---|---|---|"]
+    for mid, thr in THRESHOLD.items():
+        L.append(f"| {mid}{' ✓' if mid == best else ''} | {thr:.2f}{' (actual)' if mid == 'M7' else ''} | {ms('val', mid, 'f1_macro')} | "
+                 f"{ms('val', mid, 'accuracy')} | {ms('test', mid, 'f1_macro')} | {ms('test', mid, 'accuracy')} |")
+
+    L += ["", "## Agregación multiclase (M9–M11): cambia el AUC-Macro por video", "",
+          "| ID | Ventanas usadas | AUC-Macro test | Δ vs M9 [IC 95 %] | F1-Macro test | Exactitud test | AUC-Macro val |", "|---|---|---|---|---|---|---|"]
+    for mid, (desc, _) in MULTICLASS.items():
+        delta = "—" if mid == "M9" else "{:+.3f} [{:+.3f}, {:+.3f}]".format(*paired_delta_ci(macro_auc("M9"), macro_auc(mid), draws))
+        L.append(f"| {mid} | {desc} | {ms('test', mid, 'auc_macro')} | {delta} | {ms('test', mid, 'f1_macro')} | "
+                 f"{ms('test', mid, 'accuracy')} | {ms('val', mid, 'auc_macro')} |")
+
+    L += ["", "## Decisión dura de referencia (M12) frente al argmax de M9–M11", "",
+          "| ID | Decisión | F1-Macro test | Exactitud test | F1-Macro val | Exactitud val |", "|---|---|---|---|---|---|",
+          f"| M12 | Umbral + voto entre las k ventanas, sin que Normal vote (actual) | {ms('test', 'M12', 'f1_macro')} | "
+          f"{ms('test', 'M12', 'accuracy')} | {ms('val', 'M12', 'f1_macro')} | {ms('val', 'M12', 'accuracy')} |"]
+    for mid, (desc, _) in MULTICLASS.items():
+        L.append(f"| {mid} | Normal si no supera el umbral; si no, argmax no Normal ({desc.split(' (')[0].lower()}) | "
+                 f"{ms('test', mid, 'f1_macro')} | {ms('test', mid, 'accuracy')} | {ms('val', mid, 'f1_macro')} | {ms('val', mid, 'accuracy')} |")
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    stem = f'scoring_{run_dir.parent.name}_{run_dir.name}'
-    with (RESULTS_DIR / f'{stem}.csv').open('w', newline='', encoding='utf-8') as f:
-        w = csv.DictWriter(f, fieldnames=['split', 'scoring'] + [k for k, _ in KEYS], lineterminator='\n')
-        w.writeheader()
-        w.writerows(rows)
-    lines = [f'# Puntuación por video — `{run_dir.name}`', '',
-             '| Split | Puntuación | ' + ' | '.join(lbl for _, lbl in KEYS) + ' |', '|' + '---|' * (len(KEYS) + 2)]
-    for r in rows:
-        lines.append(f"| {r['split']} | {r['scoring']} | " + ' | '.join(f'{r[k]:.3f}' for k, _ in KEYS) + ' |')
-    (RESULTS_DIR / f'{stem}.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
-    print('\n'.join(lines))
-    print(f"\nGuardado en {RESULTS_DIR / (stem + '.csv')}")
+    path = RESULTS_DIR / "scoring_M1-M12.md"
+    path.write_text("\n".join(L) + "\n", encoding="utf-8")
+    copies = archive([path], RESULTS_DIR)
+    print("\n".join(L))
+    current().set_config("scoring", {"run_dirs": [str(d) for d in run_dirs], "n_boot": args.n_boot})
+    for d in run_dirs:
+        current().add_input(d.name, d)
+    current().add_results({f"{split}.{mid}.{k}": float(np.nanmean(v)) for (split, mid), mets in results.items()
+                           for k, v in mets.items()}, section="metricas_medias_entre_semillas")
+    current().add_output(path)
+    current().add_output(copies[0], "copia con fecha")
+    print(f"\nGuardado en {path}")
 
 
 if __name__ == "__main__":
-    main()
+    with RunReport(Path(__file__).resolve().parent, "3_scoring_ablation"):
+        main()

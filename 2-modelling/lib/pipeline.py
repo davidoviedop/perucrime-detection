@@ -9,16 +9,20 @@ ganchos permiten cambiar solo lo que difiere sin duplicar el flujo:
                     entrenamiento (la destilación devuelve un envoltorio que además corre
                     al profesor); se llama solo si realmente se va a entrenar
   extra_info        dict que se guarda en la sección `extra` de run.yaml
-  model_factory     función (cfg, n_clases, pretrained) → modelo; reemplaza a build_model
-                    (la etapa 5 la usa para las variantes de arquitectura de la ablación)
-  loaders_hook      función (tupla de build_loaders) → tupla; permite cambiar los loaders
-                    antes de entrenar (p. ej. quitar el muestreador balanceado)
 """
 from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
+
+try:                                    # reporte del experimento (workspace/run_report.py); sin él, no hace nada
+    from run_report import current
+except ImportError:                     # pragma: no cover
+    class _NoReport:
+        def __getattr__(self, name):
+            return lambda *a, **k: None
+    current = lambda: _NoReport()
 
 from .cli import resolve_data_root
 from .config import Config
@@ -31,11 +35,18 @@ from .training import build_optimizer, build_scheduler, fit, restore_checkpoint
 
 def train_run(cfg: Config, run_id: str, outputs_dir: Path, use_wandb: bool = False,
               retrain: bool = False, pretrained=None, criterion=None, wrap_train_model=None,
-              extra_info: dict | None = None, extra_config: dict | None = None,
-              model_factory=None, loaders_hook=None) -> Path:
+              extra_info: dict | None = None, extra_config: dict | None = None) -> Path:
     """Entrena (o reanuda, o da por entrenada) la corrida `run_id` y devuelve su carpeta."""
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
+    report = current()
+    report.set_run_id(run_id)
+    report.set_config('config', cfg.to_dict())
+    if extra_info:
+        report.set_config('extra_info', extra_info)
+    if extra_config:
+        report.set_config('extra_config', extra_config)
+    report.add_info({'retrain': retrain, 'pretrained_override': pretrained})
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     amp = device == 'cuda'   # autocast + GradScaler: reduce a la mitad la memoria de activaciones en CUDA
@@ -61,22 +72,24 @@ def train_run(cfg: Config, run_id: str, outputs_dir: Path, use_wandb: bool = Fal
     print(f'Classes : {len(classes)}  {classes}')
     print(f'Input   : ({cfg.seq_len}, 3, {cfg.img_size[0]}, {cfg.img_size[1]})')
     print(f'Normal class index: {normal_idx}')
+    report.add_input('data_root', data_root)
+    report.add_info({'device': device, 'amp': amp, 'classes': classes, 'sources': sources})
 
     train_loader, val_loader, test_loader, tr_recs, vl_recs, test_recs = build_loaders(
         data_root, sources, classes, cls_to_idx,
         cfg.seq_len, cfg.stride, tuple(cfg.img_size), cfg.batch_size, cfg.num_workers,
         max_windows_per_video=cfg.max_windows_per_video, frame_stride=cfg.frame_stride,
         temporal_jitter=cfg.temporal_jitter)
-    if loaders_hook is not None:
-        train_loader, val_loader, test_loader, tr_recs, vl_recs, test_recs = loaders_hook(
-            (train_loader, val_loader, test_loader, tr_recs, vl_recs, test_recs))
+    report.add_info({'train_windows': len(tr_recs), 'val_windows': len(vl_recs), 'test_windows': len(test_recs)})
     # ── Modelo ──────────────────────────────────────────────────────────────
-    factory = model_factory or build_model
-    model = factory(cfg, len(classes), pretrained=pretrained).to(device)
+    model = build_model(cfg, len(classes), pretrained=pretrained).to(device)
     total, trainable, frozen = count_parameters(model)
     print(f'Total parameters     : {total:,}')
     print(f'Trainable parameters : {trainable:,}')
     print(f'Frozen parameters    : {frozen:,}  (backbone early layers)')
+    report.add_info({'params_total': total, 'params_trainable': trainable, 'params_frozen': frozen})
+    report.add_output(out_dir, 'carpeta de la corrida (best.pt, last.pt, run.yaml, history.csv)')
+    report.flush()
 
     if criterion is None:
         criterion = nn.CrossEntropyLoss(label_smoothing=cfg.label_smoothing)
@@ -92,9 +105,11 @@ def train_run(cfg: Config, run_id: str, outputs_dir: Path, use_wandb: bool = Fal
     resume = None
     if already_trained:
         print(f'{best_path} exists — loading it and skipping training (use --retrain to train again).')
+        report.note(f'{best_path.name} ya existía: no se entrenó (se cargó el mejor modelo). Usa --retrain para repetir.')
         model.load_state_dict(torch.load(best_path, map_location=device, weights_only=True))
     elif last_path.exists():
         resume = restore_checkpoint(last_path, model, optimizer, scheduler, scaler, amp, device)
+        report.note(f'Se reanudó desde {last_path.name}' + (f' (época {resume["start_epoch"] - 1})' if resume else ' (checkpoint incompatible: se empezó de cero)'))
     else:
         print('No checkpoint found — starting from scratch.')
 
@@ -109,12 +124,14 @@ def train_run(cfg: Config, run_id: str, outputs_dir: Path, use_wandb: bool = Fal
 
     # ── Entrenamiento ───────────────────────────────────────────────────────
     if not already_trained:
+        history = None
         if resume is not None and resume['start_epoch'] > cfg.epochs:
             print(f'Training already complete ({cfg.epochs} epochs). Loading best model.')
             best_val_auc, best_state = resume['best_val_auc'], resume['best_state']
+            history = resume['history']
         else:
             train_model = wrap_train_model(model, device) if wrap_train_model else None
-            best_val_auc, best_state, _ = fit(
+            best_val_auc, best_state, history = fit(
                 model, train_loader, val_loader, vl_recs, criterion, optimizer, scheduler, scaler,
                 cfg, classes, normal_idx, device, amp, tracker, last_path, run_id,
                 resume=resume, train_model=train_model)
@@ -123,6 +140,19 @@ def train_run(cfg: Config, run_id: str, outputs_dir: Path, use_wandb: bool = Fal
         torch.save(model.state_dict(), best_path)
         print(f'\nBest val AUC: {best_val_auc:.4f}')
         print(f'Saved best model to {best_path}')
+        results = {'best_val_auc': best_val_auc}
+        if history and history.get('val_auc'):
+            va = history['val_auc']
+            results.update({'epochs_trained': len(va), 'epochs_configured': cfg.epochs,
+                            'best_epoch': int(max(range(len(va)), key=lambda i: va[i]) + 1),
+                            'last_epoch_train_auc': history['train_auc'][-1], 'last_epoch_val_auc': va[-1],
+                            'stopped_early': len(va) < cfg.epochs})
+        if device == 'cuda':
+            results['peak_gpu_memory_gb'] = round(torch.cuda.max_memory_allocated() / 1e9, 2)
+        report.add_results(results)
+        for name in ('best.pt', 'last.pt', 'history.csv', 'run.yaml'):
+            if (out_dir / name).exists():
+                report.add_output(out_dir / name)
         tracker.log_artifact(last_path, f'{cfg.wandb_run_name or run_id}-checkpoint', 'checkpoint')
         tracker.log_artifact(best_path, f'{cfg.wandb_run_name or run_id}-best-model', 'model')
 

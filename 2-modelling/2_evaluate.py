@@ -16,13 +16,16 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # raíz de 2-modelling/
+sys.path.insert(1, str(Path(__file__).resolve().parents[1]))   # raíz de workspace/ (run_report.py)
+from run_report import RunReport, current
 
 import numpy as np
 import torch
 
 from lib.cli import add_override_args, add_tracking_args, parse_overrides, resolve_data_root
 from lib.dataset import build_loaders
-from lib.evaluation import evaluate_split, print_report
+from lib.evaluation import print_report, save_predictions, score_predictions
+from lib.training import evaluate
 from lib.model import build_model
 from lib.runs import OUTPUTS_DIR, load_run_info, run_dir
 from lib.tracking import Tracker
@@ -53,6 +56,7 @@ def main():
     normal_idx = cls_to_idx.get('Normal', -1)
 
     data_root = resolve_data_root(cfg.data_root)
+    current().add_input('data_root', data_root)
     _, val_loader, test_loader, _, vl_recs, test_recs = build_loaders(
         data_root, sources, classes, cls_to_idx,
         cfg.seq_len, cfg.stride, tuple(cfg.img_size), cfg.batch_size, cfg.num_workers,
@@ -62,7 +66,9 @@ def main():
     model = build_model(cfg, len(classes), pretrained=False).to(device)    # los pesos salen de best.pt
     model.load_state_dict(torch.load(out_dir / 'best.pt', map_location=device, weights_only=True))
 
-    res = evaluate_split(model, loader, recs, classes, normal_idx, cfg, device, amp, split=args.split)
+    probs, preds, labels = evaluate(model, loader, device, len(classes), amp=amp)
+    res = score_predictions(probs, preds, labels, recs, classes, normal_idx, cfg, args.split)
+    save_predictions(out_dir / f'preds_{args.split}.npz', probs, preds, labels, recs)
     print_report(res, classes, cfg)
 
     tracker = Tracker(out_dir, classes, use_wandb=args.wandb, project=cfg.wandb_project,
@@ -76,7 +82,15 @@ def main():
     })
     tracker.finish()
     print(f'Métricas guardadas en {path}')
+    print(f'Predicciones por ventana guardadas en {out_dir / ("preds_" + args.split + ".npz")}')
+    current().set_config('config', cfg.to_dict())
+    current().add_input('best.pt', out_dir / 'best.pt')
+    current().set_run_id(args.run_id)
+    current().add_results(res['flat'], section=f'metrics_{args.split}')
+    current().add_output(path)
+    current().add_output(out_dir / f'preds_{args.split}.npz')
 
 
 if __name__ == "__main__":
-    main()
+    with RunReport(Path(__file__).resolve().parent, "2_evaluate"):
+        main()

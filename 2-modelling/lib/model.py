@@ -64,13 +64,51 @@ class TemporalTransformer(nn.Module):
         return x.mean(dim=1)               # (B, feat_dim): promedio sobre el eje temporal
 
 
+class TemporalMean(nn.Module):
+    """Sin módulo temporal (ablación): promedio de las características de los T fotogramas. Sin parámetros."""
+
+    def forward(self, x):                  # (B, T, D) → (B, D)
+        return x.mean(dim=1)
+
+
+class TemporalBiLSTM(nn.Module):
+    """BiLSTM de 1 capa (ablación): feat_dim/2 unidades por dirección, así la salida conserva feat_dim.
+
+    Se promedian las salidas en el tiempo (igual que el transformer, en vez de tomar el último
+    estado) y se aplica dropout a la salida. No lleva embedding posicional: el LSTM ya es sensible
+    al orden. Es bidireccional porque el encoder del transformer también ve toda la ventana.
+    """
+
+    def __init__(self, feat_dim, dropout=0.1):
+        super().__init__()
+        if feat_dim % 2:
+            raise ValueError('BiLSTM: feat_dim debe ser par')
+        self.lstm = nn.LSTM(feat_dim, feat_dim // 2, num_layers=1, batch_first=True, bidirectional=True)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        out, _ = self.lstm(x)              # (B, T, feat_dim)
+        return self.dropout(out.mean(dim=1))
+
+
+TEMPORAL_MODULES = ('transformer', 'none', 'bilstm')
+
+
 class AnomalyDetector(nn.Module):
     def __init__(self, n_classes, backbone_name, pretrained=True, freeze_prefixes=(),
-                 attn_heads=4, attn_layers=1, attn_dropout=0.1, head_dropout=0.5, seq_len=16):
+                 attn_heads=4, attn_layers=1, attn_dropout=0.1, head_dropout=0.5, seq_len=16,
+                 temporal_module='transformer'):
         super().__init__()
         self.backbone = FrameBackbone(backbone_name, pretrained, freeze_prefixes)
         feat_dim      = self.backbone.out_dim
-        self.temporal = TemporalTransformer(feat_dim, attn_heads, attn_layers, attn_dropout, seq_len)
+        if temporal_module == 'transformer':
+            self.temporal = TemporalTransformer(feat_dim, attn_heads, attn_layers, attn_dropout, seq_len)
+        elif temporal_module == 'none':
+            self.temporal = TemporalMean()
+        elif temporal_module == 'bilstm':
+            self.temporal = TemporalBiLSTM(feat_dim)
+        else:
+            raise ValueError(f'temporal_module desconocido: {temporal_module!r} (válidos: {TEMPORAL_MODULES})')
         self.head     = nn.Sequential(
             nn.LayerNorm(feat_dim),
             nn.Dropout(head_dropout),
@@ -122,7 +160,7 @@ def build_model(cfg, n_classes, pretrained=None):
         pretrained=cfg.pretrained if pretrained is None else pretrained,
         freeze_prefixes=cfg.freeze_prefixes,
         attn_heads=cfg.attn_heads, attn_layers=cfg.attn_layers, attn_dropout=cfg.attn_dropout,
-        head_dropout=cfg.head_dropout, seq_len=cfg.seq_len,
+        head_dropout=cfg.head_dropout, seq_len=cfg.seq_len, temporal_module=cfg.temporal_module,
     )
 
 

@@ -10,9 +10,12 @@ import sys
 from pathlib import Path
 
 STAGE_DIR = Path(__file__).resolve().parents[1]
+WORKSPACE_DIR = STAGE_DIR.parent
 MODELLING_DIR = STAGE_DIR.parent / "2-modelling"
 OUTPUTS_DIR = STAGE_DIR / "outputs"
 RESULTS_DIR = STAGE_DIR / "results"
 
 if str(MODELLING_DIR) not in sys.path:
     sys.path.insert(1, str(MODELLING_DIR))
+if str(WORKSPACE_DIR) not in sys.path:      # run_report.py
+    sys.path.insert(1, str(WORKSPACE_DIR))

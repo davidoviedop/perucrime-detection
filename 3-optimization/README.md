@@ -107,3 +107,14 @@ python 2_compress.py --run-dir outputs/<id> --prune-amounts 0 0.2 --dtypes fp32 
 
 Todos los comandos se ejecutan desde esta carpeta. `results/comparison.csv` se comparte entre
 corridas: repetir una corrida reemplaza solo sus filas (mismo `run_id`).
+
+## Reportes de experimentos
+
+Cada vez que se ejecuta un script de esta etapa se escribe un reporte en `reports/` (uno por ejecución, con la fecha en el nombre,
+sin sobrescribir los anteriores): `AAAAMMDD-HHMMSS_{script}[_{run_id}].md` para leer y `.json` con lo mismo para procesar. Sirve para
+seguir el avance de la etapa y para **reanudar o replicar en otro equipo**: trae el estado (completado / falló / interrumpido), el
+comando exacto y desde qué carpeta lanzarlo, todos los parámetros (también los valores por defecto) y la configuración completa
+(los YAML se incluyen enteros), la huella de las entradas (tamaño, sha256, archivos por carpeta), el entorno (servidor, Python,
+versiones de los paquetes, GPU, ffmpeg y `pip freeze`), los resultados, los archivos de salida y las instrucciones de reanudación.
+El reporte se escribe en cuanto se conocen los parámetros, así que si el proceso se cae queda igual. Lo genera `../run_report.py`
+(solo biblioteca estándar); no se mezcla con los de las otras etapas.

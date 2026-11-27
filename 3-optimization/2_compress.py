@@ -28,6 +28,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # raíz de 3-optimization/ (agrega también 2-modelling/)
+sys.path.insert(1, str(Path(__file__).resolve().parents[1]))   # raíz de workspace/ (run_report.py)
+from run_report import RunReport, current
 
 from optimization import STAGE_DIR   # al importar `optimization` queda lib/ de la etapa 2 en sys.path
 import numpy as np
@@ -180,6 +182,16 @@ def main():
     write_sweep_csv(run_dir / 'compression_sweep.csv', results)
     print(f'\nComparison table written to {args.comparison_csv} ({len(rows)} rows for run {run_id})')
     print(f'Detalle por variante en {run_dir / "compression_sweep.csv"}')
+    current().set_run_id(run_id)
+    current().set_config('config', cfg.to_dict())
+    current().add_input('run_dir', run_dir)
+    current().add_info({'backbone': cfg.backbone, 'n_params': n_params, 'prune_amounts': args.prune_amounts, 'dtypes': args.dtypes,
+                        'test_windows': len(test_recs)})
+    current().add_results({f"{r['label']}.{k}": r[k] for r in results
+                           for k in ('size_mb', 'sparsity', 'window_auc', 'video_auc', 'video_f1', 'video_auc_binary',
+                                     'gflops', 'fps', 'fps_cpu')}, section='sweep')
+    current().add_output(args.comparison_csv, 'tabla de comparación compartida (se agregan filas de esta corrida)')
+    current().add_output(run_dir / 'compression_sweep.csv')
 
     if tracker.wandb is not None:
         wb = tracker.wandb
@@ -194,4 +206,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with RunReport(Path(__file__).resolve().parent, "2_compress"):
+        main()

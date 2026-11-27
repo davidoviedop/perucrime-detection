@@ -35,6 +35,9 @@ class Config:
     attn_layers: int = 1
     attn_dropout: float = 0.1
     head_dropout: float = 0.5
+    # Módulo temporal: 'transformer' (por defecto), 'none' (promedio de los fotogramas, sin parámetros)
+    # o 'bilstm' (BiLSTM de 1 capa, feat_dim/2 unidades por dirección, promedio temporal, dropout 0.1).
+    temporal_module: str = "transformer"
 
     # ── Entrenamiento ───────────────────────────────────────────────────────
     epochs: int = 2
@@ -51,6 +54,9 @@ class Config:
     lr_sched_patience: int = 3
     lr_threshold: float = 1e-4
     lr_min: float = 1e-8
+    lr_threshold_mode: str = "rel"    # 'rel' (por defecto) o 'abs' para el umbral de ReduceLROnPlateau
+    warmup_epochs: int = 0            # calentamiento lineal del LR, por paso, durante las primeras épocas (0 = sin calentamiento)
+    grad_accum: int = 1               # lotes que se acumulan por paso del optimizador (lote efectivo = batch_size × grad_accum)
     seed: int = 42
 
     # ── Puntuación MIL por video (solo afecta a las métricas reportadas, no al entrenamiento) ──
